@@ -25,6 +25,9 @@ Version: 2.0.0
    - 生成された知識グラフを、設定一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF/N3.js）に保存・同期できるように抽象化する。
 5. **GraphRAG 連携（エクスポート機能）**
    - LlamaIndex.TS や LangChain.js、外部グラフデータベースに直接ロード・インポートできる構造化JSON（Nodes & Edges）およびTurtle形式（.ttl）ファイルでエクスポートする。
+6. **マルチランゲージ対応 (Multi-language Support)**
+   - ontoNgn Console (Developer UI) および APIのエラーメッセージ等のインターフェース表示は多言語（日本語・英語など）をサポートする。
+   - 解析対象ドキュメントの記述言語、および抽出するオントロジー語彙（ラベルや説明）の言語設定を、設定ファイルまたはAPIリクエストから動的に指定可能とする。
 
 ### 2.2 非機能要件 (Non-Functional Requirements)
 1. **クリーンアーキテクチャによる低依存設計**:
@@ -33,6 +36,8 @@ Version: 2.0.0
    - Node.jsの非同期I/O（`async/await`）を活用し、画像の生成やLLM APIの呼び出しを非ブロッキングで並行処理する。
 3. **データのポータビリティ**:
    - データの実体は標準的なトリプル（RDF）またはノード＆エッジ（LPG）として表現し、いつでも別のデータベースへ移行可能とする。
+4. **英語ベースのソースコード規約 (English-based Codebase Standard)**:
+   - 将来的なグローバル展開およびオープンソース化を見据え、プログラム内のコメント、JSDoc/TSDoc、識別子（クラス名、関数/メソッド名、変数名）はすべて英語（English）で記述・統一する。
 
 ### 2.3 アーキテクチャ設計方針（フロントエンド・ロジックレス思想とエンジン化）
 
@@ -255,17 +260,17 @@ sequenceDiagram
 ```typescript
 export class GraphNode {
   constructor(
-    public readonly id: string,                 // URI表現 (例: "ap:Procedure_JidouTeate")
-    public readonly label: string,              // クラス名 (例: "ap:Procedure")
-    public readonly properties: Record<string, any> = {} // 属性値 (label, description等)
+    public readonly id: string,                 // URI expression (e.g., "ap:Procedure_JidouTeate")
+    public readonly label: string,              // Class name (e.g., "ap:Procedure")
+    public readonly properties: Record<string, any> = {} // Property values (e.g., label, description)
   ) {}
 }
 
 export class GraphEdge {
   constructor(
-    public readonly sourceId: string,           // 始点ノードID
-    public readonly targetId: string,           // 終点ノードID
-    public readonly relationType: string,       // リレーション名 (例: "ap:requiresDocument")
+    public readonly sourceId: string,           // Source node ID
+    public readonly targetId: string,           // Target node ID
+    public readonly relationType: string,       // Relation type (e.g., "ap:requiresDocument")
     public readonly properties: Record<string, any> = {}
   ) {}
 }
@@ -427,7 +432,7 @@ export class LMStudioGateway implements ILLMService {
   }
 
   async extractOntology(textContent: string, imageBuffers: Buffer[]): Promise<ExtractionResult> {
-    // 1. OpenAI規格メッセージの組み立て
+    // 1. Assemble messages in OpenAI format
     const contentParts: any[] = [
       {
         type: 'text',
@@ -435,7 +440,7 @@ export class LMStudioGateway implements ILLMService {
       }
     ];
 
-    // 2. 画像のBase64エンコードとメッセージへの追加
+    // 2. Base64-encode images and add to messages
     for (const buf of imageBuffers) {
       const base64Image = buf.toString('base64');
       contentParts.push({
@@ -446,7 +451,7 @@ export class LMStudioGateway implements ILLMService {
       });
     }
 
-    // 3. API実行
+    // 3. Call LLM API
     const response = await this.openai.chat.completions.create({
       model: this.modelName,
       temperature: this.temperature,
@@ -466,10 +471,10 @@ export class LMStudioGateway implements ILLMService {
     const responseText = response.choices[0]?.message?.content || '{}';
     const jsonParsed = JSON.parse(responseText);
 
-    // 4. Zodによる検証
+    // 4. Validate output with Zod
     const validatedData = LLMExtractionSchema.parse(jsonParsed);
 
-    // 5. ドメインモデルへの変換
+    // 5. Map validated data to domain models
     const nodes = validatedData.nodes.map(
       n => new GraphNode(n.id, n.type, { label: n.label, description: n.description, ...n.properties })
     );
@@ -500,7 +505,7 @@ export interface EvolutionProposal {
   proposedDescription: string;
   suggestedProperties: Array<{ name: string; type: 'string' | 'number' | 'boolean' }>;
   targetExistingClassOrProperty?: string;
-  rationale: string; // 一時判定の推論理由
+  rationale: string; // Rationale for triage decision
 }
 
 @Injectable()
@@ -511,17 +516,17 @@ export class OntologyEvolutionAgent {
   ) {}
 
   /**
-   * 未分類概念（ap:UnclassifiedConcept）を収集し、既存のオントロジー定義と照合して提案を生成します。
+   * Collect unclassified concepts (ap:UnclassifiedConcept), match them against the existing ontology schema, and generate proposals.
    */
   async generateProposals(): Promise<EvolutionProposal[]> {
-    // 1. グラフDBからすべての未分類概念（ap:UnclassifiedConcept）を取得
+    // 1. Fetch all unclassified concepts (ap:UnclassifiedConcept) from the graph database
     const unclassifiedNodes = await this.graphRepository.findNodesByType('ap:UnclassifiedConcept');
     if (unclassifiedNodes.length === 0) return [];
 
-    // 2. 現在アクティブなオントロジースキーマ（クラス構造、プロパティ）をメタデータから取得
+    // 2. Get the currently active ontology schema (classes, properties) from metadata
     const currentSchema = await this.graphRepository.getSchemaDefinition();
 
-    // 3. AI Agent (LLM) に対する一時判定プロンプトの組み立て
+    // 3. Construct prompt and request evaluation from LLM Agent
     const proposals: EvolutionProposal[] = [];
     for (const node of unclassifiedNodes) {
       const proposal = await this.evaluateConcept(node, currentSchema);
@@ -559,7 +564,7 @@ ${JSON.stringify(currentSchema.classes)}
   "rationale": "この判定に至った論理的根拠・推論プロセス（日本語）"
 }
 `;
-    // LLMに判定を依頼し、結果をパース（モック処理含む）
+    // Call LLM for triage decision and parse the response
     const result = await this.llmService.callVisionOrText(prompt);
     const parsed = JSON.parse(result);
 
@@ -584,13 +589,13 @@ export class SchemaCompiler {
   private schemaFilePath = path.join(__dirname, '../gateways/schemas/extraction.schema.ts');
 
   /**
-   * 承認された提案を元に、Zodバリデーションスキーマコードを再コンパイル（動的更新）します。
+   * Recompile (dynamically update) the Zod validation schema code based on the approved proposal.
    */
   async compileZodSchema(newClass: { name: string; properties: any[] }): Promise<void> {
-    // 1. 既存のスキーマファイルを読み込む
+    // 1. Read the existing schema file
     let schemaCode = await fs.readFile(this.schemaFilePath, 'utf-8');
 
-    // 2. z.enum の配列に新規クラスを追加する置換処理
+    // 2. Parse and append the new class into the z.enum array
     const enumSearchRegex = /type:\s*z\.enum\(\[\s*([\s\S]*?)\s*\]\)/;
     const match = schemaCode.match(enumSearchRegex);
     
@@ -607,12 +612,12 @@ export class SchemaCompiler {
       }
     }
 
-    // 3. スキーマファイルを上書き書き出し
+    // 3. Write back the updated schema code
     await fs.writeFile(this.schemaFilePath, schemaCode, 'utf-8');
   }
 
   /**
-   * W3C標準のOWLオントロジーファイル(.ttl)に新規クラス定義を追記します。
+   * Append the new class definition to the W3C standard OWL ontology file (.ttl).
    */
   async compileOwlOntology(newClass: { name: string; description: string }): Promise<void> {
     const owlPath = path.join(process.cwd(), 'docs/schema/ontology.ttl');
@@ -636,17 +641,17 @@ const execAsync = promisify(exec);
 @Injectable()
 export class DocumentRenderer {
   /**
-   * PDF/Word/Excelを受け取り、各ページ画像（PNG）のバッファ配列を生成します。
+   * Receives a PDF/Word/Excel file and generates an array of PNG page image buffers.
    */
   async renderToImages(fileBuffer: Buffer, fileExtension: string): Promise<Buffer[]> {
     let pdfBuffer = fileBuffer;
 
-    // Word/Excel の場合は LibreOffice を用いてPDFに一時変換する
+    // Convert Word/Excel files to PDF temporarily using LibreOffice
     if (['.docx', '.xlsx'].includes(fileExtension.toLowerCase())) {
       pdfBuffer = await this.convertToPdfViaLibreOffice(fileBuffer, fileExtension);
     }
 
-    // PDFバッファをPNG画像の配列にレンダリングする
+    // Render the PDF buffer to an array of PNG images
     return this.renderPdfToPngs(pdfBuffer);
   }
 
@@ -658,20 +663,20 @@ export class DocumentRenderer {
     await fs.writeFile(tempInputPath, buffer);
 
     try {
-      // LibreOffice (headlessモード) を用いたPDF変換コマンドの実行
-      // (Windows環境では soffice.exe へのパスが通っている必要があります)
+      // Run LibreOffice in headless mode to convert the document to PDF
+      // (Requires soffice.exe path configured in Windows environment)
       await execAsync(`soffice --headless --convert-to pdf --outdir "${tempDir}" "${tempInputPath}"`);
       
       const tempPdfPath = tempInputPath.replace(ext, '.pdf');
       const pdfBuffer = await fs.readFile(tempPdfPath);
 
-      // 一時ファイルの削除
+      // Clean up temporary files
       await fs.unlink(tempInputPath);
       await fs.unlink(tempPdfPath);
 
       return pdfBuffer;
     } catch (err) {
-      // エラーハンドリング
+      // Error handling
       throw new Error(`Failed to convert office document to PDF: ${(err as Error).message}`);
     }
   }
@@ -683,17 +688,17 @@ export class DocumentRenderer {
 
     for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
       const page = await pdfDocument.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2.0 }); // 高解像度レンダリング用
+      const viewport = page.getViewport({ scale: 2.0 }); // For high-resolution rendering
 
-      // ※ 実際のNode.js上でのレンダリングには 'canvas' ライブラリを用いて
-      // pdfjsのレンダリングコンテキストに描画し、Bufferを取得します。
-      // (実装フェーズにて canvas npm ライブラリを導入します)
+      // Note: Real rendering on Node.js requires 'canvas' npm library to draw 
+      // pdfjs viewport content and get the image Buffer.
+      // We will install and import the 'canvas' package in the implementation phase.
       // canvas = createCanvas(viewport.width, viewport.height);
       // context = canvas.getContext('2d');
       // page.render({ canvasContext: context, viewport })
       // images.push(canvas.toBuffer('image/png'))
       
-      // (設計モック用プレースホルダー)
+      // (Placeholder stub for design verification)
       images.push(Buffer.from(`page-${pageNum}-png-stub`));
     }
 
@@ -719,13 +724,13 @@ export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export class DocumentSource {
   constructor(
-    public readonly id: string,                 // 一意識別ID (ユーザー指定、またはファイルハッシュ)
-    public readonly fileName: string,           // ファイル名
-    public readonly sourceType: SourceType,     // 収集チャネル
-    public readonly sourcePath: string | null,   // ローカルパスまたは取得URL
-    public readonly status: ProcessingStatus,   // 処理ステータス
-    public readonly errorMessage: string | null,// エラー発生時のログ
-    public readonly hash: string,               // コンテンツのハッシュ値 (更新検知用)
+    public readonly id: string,                 // Unique identifier (user-provided or file hash)
+    public readonly fileName: string,           // File name
+    public readonly sourceType: SourceType,     // Source ingestion type
+    public readonly sourcePath: string | null,   // Local path or download URL
+    public readonly status: ProcessingStatus,   // Processing status
+    public readonly errorMessage: string | null,// Error message if processing failed
+    public readonly hash: string,               // Content hash for change detection
     public readonly createdAt: Date,
     public readonly updatedAt: Date
   ) {}
