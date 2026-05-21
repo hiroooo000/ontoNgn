@@ -1,0 +1,10 @@
+# Dependency directories
+node_modules/
+dist/
+
+# Sample data
+sampledata/
+
+# OS files
+.DS_Store
+Thumbs.db
