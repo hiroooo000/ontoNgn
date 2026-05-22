@@ -196,9 +196,45 @@ classDiagram
     AgeGraphRepository ..|> IGraphRepository : implements
 ```
 
-### 4.3 処理シーケンス図（Processing Sequence Diagram）
+### 4.3 処理の概要フロー（Processing Flowchart）
 
-ドキュメントのアップロード画像処理から、AIエージェントによる一次評価、および人間の承認・コンパイルに至るエンドツーエンドの処理シーケンスです。
+ドキュメントのアップロードから、未分類概念の事前判定、必要に応じたスキーマ進化、および最終的なグラフデータベースへの本保存にいたるシステム全体の処理プロセスです。
+
+```mermaid
+flowchart TD
+    Start([開始]) --> Ingestion[1. ドキュメント収集/アップロード]
+    Ingestion --> Render{拡張子の判定}
+    Render -->|PDF| PdfRender[PDFをPNG画像にレンダリング]
+    Render -->|Word/Excel| OfficeRender[LibreOfficeでPDF変換 -> PNGにレンダリング]
+    
+    PdfRender --> LLMExtract[2. マルチモーダルLLM抽出]
+    OfficeRender --> LLMExtract
+    
+    LLMExtract --> Validate{Zodスキーマバリデーション}
+    Validate -->|NG: 構文エラー等| Error[エラー処理・ログ出力]
+    Validate -->|OK| ConceptTriage{未分類概念の有無を判定}
+    
+    ConceptTriage -->|なし: 既存スキーマに完全適合| SaveDB[5. グラフデータベース本保存]
+    ConceptTriage -->|あり: 未分類概念を検出| TempSave[3. 抽出データを一時保存 Pending]
+    
+    TempSave --> EvolutionAgent[4. AI Agentによるスキーマ進化提案生成]
+    EvolutionAgent --> ConsoleUI[Console UIでの提案表示・確認]
+    ConsoleUI --> UserAction{開発者による承認・マッピング判定}
+    
+    UserAction -->|新規クラス承認| Compile[Zodスキーマ更新 & Turtle追記]
+    UserAction -->|既存クラスへマッピング| MapExisting[既存クラスのプロパティへマッピング]
+    UserAction -->|却下| Discard[提案の却下・データ破棄]
+    
+    Compile --> SaveDB
+    MapExisting --> SaveDB
+    Discard --> End
+    
+    SaveDB --> End([完了])
+```
+
+### 4.4 処理シーケンス図（Processing Sequence Diagram）
+
+ドキュメントのアップロード画像処理から、未分類概念の事前判定、一時保存、AIエージェントによる一次評価、および人間の承認・コンパイルを経て本保存に至るエンドツーエンドの処理シーケンスです。
 
 ```mermaid
 sequenceDiagram
@@ -213,27 +249,35 @@ sequenceDiagram
     participant Agent as OntologyEvolutionAgent
     participant Compiler as SchemaCompiler
 
-    Note over Admin, UI: 1. ドキュメント取り込み・オントロジー抽出
+    Note over Admin, UI: 1. ドキュメント取り込み・オントロジー抽出と判定
     Admin ->> UI: ドキュメントをアップロード / 収集実行
     UI ->> API: POST /api/v1/documents/upload (バイナリ転送)
     API ->> UC: execute(file, ext)
     UC ->> Render: renderToImages(file, ext)
     Render -->> UC: PNG画像バッファ配列
     UC ->> LLM: extractOntology(text, images)
-    Note over LLM: マルチモーダルLLMによる<br/>Zodスキーマに沿った抽出
     LLM -->> UC: 抽出結果 (Nodes & Edges)
-    UC ->> DB: 保存処理 (重複IDの場合は差分置換・参照カウント更新)
-    Note over DB: 分類不能な新概念は<br/>ap:UnclassifiedConcept として保存
-    DB -->> UC: 完了
-    UC -->> API: 抽出ステータス
-    API -->> UI: 処理完了レスポンス
+    
+    UC ->> UC: 未分類概念の有無を判定
+    
+    alt 未分類概念なし
+        UC ->> DB: 本保存処理 (重複IDの場合は差分置換・参照カウント更新)
+        DB -->> UC: 完了
+        UC -->> API: 抽出ステータス (完了)
+        API -->> UI: 処理完了レスポンス (直接インポート)
+    else 未分類概念あり
+        UC ->> DB: 抽出データを一時保存 (Pending 状態)
+        DB -->> UC: 完了
+        UC -->> API: 抽出ステータス (要スキーマ進化)
+        API -->> UI: 処理保留レスポンス (要承認)
+    end
 
     Note over Admin, UI: 2. AI Agent によるスキーマ進化（Human-in-the-Loop）
     Admin ->> UI: スキーマ進化コンソール画面を表示
     UI ->> API: GET /api/v1/schema/candidates
     API ->> Agent: generateProposals()
-    Agent ->> DB: 未分類ノード (ap:UnclassifiedConcept) の取得
-    DB -->> Agent: 未分類ノード一覧
+    Agent ->> DB: 一時保存された未分類データの取得
+    DB -->> Agent: 未分類データ一覧
     Agent ->> LLM: 既存スキーマとの類似性および判定依頼 (評価プロンプト)
     LLM -->> Agent: 提案JSON (昇格/統合/却下)
     Agent -->> API: 提案リスト (EvolutionProposal[])
@@ -247,7 +291,12 @@ sequenceDiagram
     API ->> Compiler: compileOwlOntology(newClass)
     Note over Compiler: ontology.ttl ファイルへの追記
     Compiler -->> API: 完了
-    API -->> UI: 承認完了 (UIをリフレッシュ)
+    
+    API ->> UC: 一時保存データからグラフDBへ本保存 (更新されたスキーマを適用)
+    UC ->> DB: 本保存処理
+    DB -->> UC: 完了
+    
+    API -->> UI: 承認および本保存完了 (UIをリフレッシュ)
 ```
 
 ---
@@ -761,7 +810,10 @@ export class DocumentSource {
      ノードの属性 `sourceDocumentIds`（配列）から当該 documentId を削除。
    - sourceDocumentIds が空になった（どのドキュメントからも参照されていない）ノードを削除。
 3. 新しいドキュメントを解析してオントロジーを抽出。
-4. 新規抽出されたノードとエッジを登録：
+4. 抽出データに含まれる未分類概念の有無を判定：
+   - 未分類概念がない場合：即座にステップ5の本保存処理を実行。
+   - 未分類概念がある場合：抽出データを一時保存（Pending）とし、AI Agentによる提案および開発者による承認・マッピング（スキーマ更新）完了後にステップ5を実行。
+5. 新規抽出されたノードとエッジを本保存として登録：
    - 既存ノードがある場合：そのノードの `sourceDocumentIds` に当該 documentId を追加。
    - 新規ノードの場合：`sourceDocumentIds` = [documentId] で作成。
    - 新規エッジの場合：`properties.sourceDocumentId` = documentId で作成。
