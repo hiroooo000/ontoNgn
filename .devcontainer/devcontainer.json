@@ -1,0 +1,39 @@
+{
+  "name": "ontoNgn-Python-Development",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "python.analysis.extraPaths": [
+          "${workspaceFolder}/src"
+        ]
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "streetsidesoftware.code-spell-checker"
+      ]
+    }
+  },
+  "forwardPorts": [
+    8000
+  ],
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "mounts": [
+    "source=ontrogy-db-data,target=${containerWorkspaceFolder}/data,type=volume"
+  ],
+  "remoteUser": "vscode"
+}

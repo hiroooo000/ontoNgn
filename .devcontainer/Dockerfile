@@ -1,0 +1,13 @@
+FROM mcr.microsoft.com/devcontainers/python:3.12
+
+# Install LibreOffice, Poppler, Git, Vim, and other dependencies
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get -y install --no-install-recommends \
+    libreoffice \
+    poppler-utils \
+    git \
+    vim \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# [Optional] Set the default shell to bash
+ENV SHELL=/bin/bash
