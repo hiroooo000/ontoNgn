@@ -12,14 +12,18 @@ Version: 2.0.0
 ## 2. システム要件
 
 ### 2.1 機能要件 (Functional Requirements)
-1. **マルチモーダル・ドキュメント画像レンダリング (DocumentRenderer)**
+1. **ワークフロー制御エンジン (Workflow Orchestrator)**
+   - ドキュメントのアップロードからオントロジー生成までのパイプラインを一元管理し、各処理を非同期APIとして疎結合に呼び出す。
+   - 各ステップのステータス管理、エラーハンドリング、およびHuman-in-the-Loop（中間テキストの確認・修正など）を可能にする状態管理を行う。
+2. **ドキュメント画像レンダリングAPI (Document Render API)**
    - **PDF変換**: `pdfjs-dist` を用いて、PDFの各ページを高解像度のPNG画像にレンダリングする。
-   - **Word (`.docx`) / Excel (`.xlsx`) 変換**: レイアウトや表構造を完全に保持するため、ヘッドレスの LibreOffice 等を用いて一度PDFに変換し、その後PNG画像にレンダリングする。
-2. **マルチモーダルLLM抽出エンジン (LMStudio連携)**
-   - 変換された画像リスト（全ページ）を、LMStudio等でホストされたマルチモーダルLLMに送信する。
-   - プロンプトにて指定したJSONスキーマに従い、エンティティ（手続き、アクター、必要書類、条件等）およびリレーション（エッジ）をJSON形式で直接抽出する。
-   - 接続先LLM（APIエンドポイント、モデル名、パラメータ等）は設定ファイル（`.env`）で動的に切り替え可能とする。
-3. **型安全なバリデーション (Zodによるパース)**
+   - **Word/Excel変換**: ヘッドレスの LibreOffice 等を用いて一度PDFに変換し、その後PNG画像にレンダリングする。
+3. **Visionテキスト抽出API (Vision Extraction API)**
+   - 画像リストを受け取り、Vision Model（マルチモーダルLLM）を用いてドキュメントのレイアウトを維持した構造化テキスト（Markdown等）を抽出・生成する。
+4. **オントロジー生成API (Ontology Generation API)**
+   - 抽出された構造化テキストを受け取り、Text Modelを用いてJSONスキーマに従い、エンティティ（手続き、アクター、必要書類等）とリレーション（エッジ）を抽出する。
+   - 接続先LLM（APIエンドポイント、モデル名等）は設定ファイル（`.env`）で切り替え可能とする。
+5. **型安全なバリデーション (Zodによるパース)**
    - LLMから返却されたJSONデータを `Zod` スキーマで検証し、ドメインモデルである `GraphNode` および `GraphEdge` に変換する。
 4. **DB非依存のオントロジー管理 (IGraphRepository)**
    - 生成された知識グラフを、設定一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF/rdflib）に保存・同期できるように抽象化する。
@@ -48,7 +52,8 @@ Version: 2.0.0
   - バックエンドAPIから受け取ったドキュメントの処理ステータス、ログ、AIエージェントからの「スキーマ進化の提案（クラス名、型、説明、推論理由）」を画面に描画し、人間の「承認 / 却下」入力を受け取ってそのままバックエンドAPIに中継する機能のみを担当します。
   - クラス類似性の判定やコードのコンパイルなど、いかなるビジネスロジックもコンソール側には配置しません。
 - **ontoNgn Engine (Backend API Engine) の役割**:
-  - ドキュメント画像へのレンダリング、LMStudio経由のLLM抽出処理、グラフ更新時のクリーンアップ、未分類概念（`ap:UnclassifiedConcept`）の収集とAI Agentによる一次評価・提案生成、OWLおよびZod定義コードの自動再コンパイルといった**すべてのビジネスロジックおよび状態管理を一元的に実行します**。
+  - ワークフローエンジンとしてパイプライン全体をオーケストレーションし、ドキュメントの画像化(Render API)、テキスト抽出(Vision API)、JSON抽出(Ontology API)といった**疎結合なビジネスロジック群をステートマシンとして一元的に管理・実行します**。
+  - グラフ更新時のクリーンアップ、未分類概念（`ap:UnclassifiedConcept`）の収集とAI Agentによる評価・提案生成、コードコンパイルなどの機能も、非同期ジョブとして連動させます。
 
 ---
 
@@ -74,7 +79,7 @@ FastAPIのDependency Injection（DI）システムとルーターを利用し、
                                |
 +------------------------------v----------------------------------------+
 |                        Interface Adapters                             |
-|  - REST API Routers (FastAPI)                                         |
+|  - REST API Routers (Workflow, Render, Vision, Ontology)              |
 |  - LMStudioGateway (OpenAI Python Client Wrapper)                     |
 |  - DocumentRenderer (PDF/Word/Excel to PNG)                           |
 |  - [Concrete Repository Adapters]                                     |
@@ -84,16 +89,17 @@ FastAPIのDependency Injection（DI）システムとルーターを利用し、
                                |
 +------------------------------v----------------------------------------+
 |                            Use Cases                                  |
-|  - ParseDocumentUseCase                                               |
-|  - ExtractOntologyUseCase (Uses IGraphRepository, ILLMService)        |
-|  - ExportGraphRAGUseCase                                              |
+|  - WorkflowOrchestrator (Manages Pipeline State)                      |
+|  - RenderDocumentUseCase      - ExtractTextUseCase (Vision)           |
+|  - GenerateOntologyUseCase    - ExportGraphRAGUseCase                 |
 +-----------------------------------------------------------------------+
                                |
 +------------------------------v----------------------------------------+
 |                             Domain                                    |
 |  - Domain Models (GraphNode, GraphEdge, ExtractionResult - Pydantic)  |
 |  - Domain Interfaces (Abstract Base Classes - abc.ABC)                |
-|    * ILLMService              * IGraphRepository                      |
+|    * IVisionService           * ITextLLMService                       |
+|    * IGraphRepository                                                 |
 +-----------------------------------------------------------------------+
 ```
 
@@ -108,16 +114,24 @@ app/
 │   ├── models/
 │   │   └── graph.py            # GraphNode, GraphEdge 定義 (Pydantic)
 │   └── services/
-│       ├── llm_service.py      # ILLMService 抽象クラス (abc.ABC)
-│       └── graph_repository.py # IGraphRepository 抽象クラス (abc.ABC)
+│       ├── vision_service.py     # IVisionService 抽象クラス
+│       ├── text_llm_service.py   # ITextLLMService 抽象クラス
+│       └── graph_repository.py   # IGraphRepository 抽象クラス
 ├── usecases/                   # 2. ユースケースレイヤー
-│   ├── extract_ontology.py     # LLMを用いたオントロジー生成
+│   ├── render_document.py      # 画像レンダリング処理
+│   ├── extract_text.py         # Visionを用いたテキスト抽出
+│   ├── generate_ontology.py    # LLMを用いたオントロジー生成
 │   └── export_graphrag.py      # GraphRAG用データエクスポート
+├── workflows/                  # ワークフロー制御層
+│   └── orchestrator.py         # パイプライン状態管理と各UseCase/APIの非同期呼び出し
 ├── interfaces/                 # 3. インターフェースアダプター層
-│   ├── api/                    # FastAPI ルーター
-│   │   └── ontology.py
+│   ├── api/                    # 疎結合化されたFastAPI ルーター群
+│   │   ├── workflow.py         # ワークフロー制御API
+│   │   ├── render.py           # レンダリングAPI
+│   │   ├── vision.py           # Vision抽出API
+│   │   └── ontology.py         # オントロジー生成・管理API
 │   ├── gateways/               # 外部連携の具象クラス
-│   │   ├── lmstudio_gateway.py # LMStudio接続
+│   │   ├── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
 │   │   ├── kuzu_repository.py  # KuzuDBリポジトリ
 │   │   ├── age_repository.py   # Apache AGEリポジトリ
 │   │   ├── neo4j_repository.py # Neo4jリポジトリ
@@ -139,61 +153,58 @@ templates/                      # HTMX用 Jinja2 テンプレート
 ```mermaid
 classDiagram
     direction TB
-    class OntologyRouter {
-        +upload_document(file)
-        +get_schema_candidates()
-        +approve_candidate(id)
-        +map_candidate(id, target_class)
+    class WorkflowController {
+        +start_pipeline(document_id)
+        +handle_render_complete()
+        +handle_vision_complete()
+        +handle_ontology_complete()
     }
-    class ExtractOntologyUseCase {
-        +execute(file, ext)
+    class RenderAPI {
+        +render_document(file)
     }
-    class OntologyEvolutionAgent {
-        +generate_proposals()
-        -evaluate_concept(node, schema)
+    class VisionAPI {
+        +extract_text(images)
     }
-    class SchemaCompiler {
-        +compile_pydantic_schema(new_class)
-        +compile_owl_ontology(new_class)
+    class OntologyAPI {
+        +generate_ontology(text)
     }
-    class DocumentRenderer {
-        +render_to_images(file, ext)
-    }
-    class ILLMService {
+    class IVisionService {
         <<abstract>>
-        +extract_ontology(text, images)
+        +extract_text(images)
+    }
+    class ITextLLMService {
+        <<abstract>>
+        +generate_ontology(text)
     }
     class LMStudioGateway {
-        +extract_ontology(text, images)
+        +extract_text(images)
+        +generate_ontology(text)
     }
     class IGraphRepository {
         <<abstract>>
         +save_node(node)
         +save_edge(edge)
-        +find_nodes_by_type(node_type)
-        +get_schema_definition()
     }
-    class Neo4jGraphRepository {
-        +save_node(node)
+    class OntologyEvolutionAgent {
+        +generate_proposals()
     }
-    class AgeGraphRepository {
-        +save_node(node)
+    class SchemaCompiler {
+        +compile_pydantic_schema(new_class)
+        +compile_owl_ontology(new_class)
     }
 
-    OntologyRouter --> ExtractOntologyUseCase : uses
-    OntologyRouter --> OntologyEvolutionAgent : uses
-    OntologyRouter --> SchemaCompiler : uses
+    WorkflowController --> RenderAPI : async call
+    WorkflowController --> VisionAPI : async call
+    WorkflowController --> OntologyAPI : async call
     
-    ExtractOntologyUseCase --> DocumentRenderer : uses
-    ExtractOntologyUseCase --> ILLMService : uses
-    ExtractOntologyUseCase --> IGraphRepository : uses
+    VisionAPI --> IVisionService : uses
+    OntologyAPI --> ITextLLMService : uses
+    OntologyAPI --> IGraphRepository : uses
+    OntologyAPI --> OntologyEvolutionAgent : uses
+    OntologyAPI --> SchemaCompiler : uses
 
-    OntologyEvolutionAgent --> ILLMService : uses
-    OntologyEvolutionAgent --> IGraphRepository : uses
-
-    LMStudioGateway ..|> ILLMService : implements
-    Neo4jGraphRepository ..|> IGraphRepository : implements
-    AgeGraphRepository ..|> IGraphRepository : implements
+    LMStudioGateway ..|> IVisionService : implements
+    LMStudioGateway ..|> ITextLLMService : implements
 ```
 
 ### 4.3 処理の概要フロー（Processing Flowchart）
@@ -203,33 +214,34 @@ classDiagram
 ```mermaid
 flowchart TD
     Start(["開始"]) --> Ingestion["1. ドキュメント収集/アップロード"]
-    Ingestion --> Render{"拡張子の判定"}
-    Render -->|"PDF"| PdfRender["PDFをPNG画像にレンダリング"]
-    Render -->|"Word/Excel"| OfficeRender["LibreOfficeでPDF変換 -> PNGにレンダリング"]
+    Ingestion --> Workflow["2. Workflow Engine (Pipeline Controller)"]
     
-    PdfRender --> LLMExtract["2. マルチモーダルLLM抽出"]
-    OfficeRender --> LLMExtract
+    Workflow -->|Step 1| RenderAPI{"Render API"}
+    RenderAPI -->|"PDF/Word"| Images["PNG画像群生成"]
+    Images --> Workflow
     
-    LLMExtract --> Validate{"Pydanticスキーマバリデーション"}
-    Validate -->|"NG: 構文エラー等"| Error["エラー処理・ログ出力"]
-    Validate -->|"OK"| ConceptTriage{"未分類概念の有無を判定"}
+    Workflow -->|Step 2| VisionAPI["Vision API (画像からテキスト化)"]
+    VisionAPI --> ExtractedText["構造化テキスト (Markdown等)"]
+    ExtractedText --> Workflow
     
-    ConceptTriage -->|"なし: 既存スキーマに完全適合"| SaveDB["5. グラフデータベース本保存"]
-    ConceptTriage -->|"あり: 未分類概念を検出"| TempSave["3. 抽出データを一時保存 Pending"]
+    Workflow -->|Step 3| OntologyAPI["Ontology API (テキストからJSON抽出)"]
+    OntologyAPI --> Validate{"Pydanticスキーマバリデーション"}
     
-    TempSave --> EvolutionAgent["4. AI Agentによるスキーマ進化提案生成"]
+    Validate -->|"NG"| Error["エラー処理・ログ出力"]
+    Validate -->|"OK"| ConceptTriage{"未分類概念判定"}
+    
+    ConceptTriage -->|"なし"| SaveDB["DB本保存"]
+    ConceptTriage -->|"あり"| TempSave["一時保存 Pending"]
+    
+    TempSave --> EvolutionAgent["AI Agentによるスキーマ進化提案生成"]
     EvolutionAgent --> ConsoleUI["Console UIでの提案表示・確認"]
-    ConsoleUI --> UserAction{"開発者による承認・マッピング判定"}
+    ConsoleUI --> UserAction{"ユーザー承認・マッピング"}
     
-    UserAction -->|"新規クラス承認"| Compile["Pydanticスキーマ更新 & Turtle追記"]
-    UserAction -->|"既存クラスへマッピング"| MapExisting["既存クラスのプロパティへマッピング"]
-    UserAction -->|"却下"| Discard["提案の却下・データ破棄"]
-    
-    Compile --> SaveDB
-    MapExisting --> SaveDB
-    Discard --> End
+    UserAction -->|"承認/マッピング"| SaveDB
+    UserAction -->|"却下"| Discard["データ破棄"]
     
     SaveDB --> End(["完了"])
+    Discard --> End
 ```
 
 ### 4.4 処理シーケンス図（Processing Sequence Diagram）
@@ -240,63 +252,39 @@ flowchart TD
 sequenceDiagram
     autonumber
     actor Admin as "開発者 / 管理者"
-    participant UI as "ontoNgn Console (HTMX)"
-    participant API as "ontoNgn Engine (FastAPI Router)"
-    participant UC as "ExtractOntologyUseCase"
-    participant Render as "DocumentRenderer"
-    participant LLM as "LLM Service (LMStudio Gateway)"
-    participant DB as "Graph Repository (Neo4j/AGE/Kuzu)"
-    participant Agent as "OntologyEvolutionAgent"
-    participant Compiler as "SchemaCompiler"
+    participant UI as "ontoNgn Console"
+    participant WF as "Workflow Engine"
+    participant Render as "Render API"
+    participant Vision as "Vision API"
+    participant Ont as "Ontology API"
+    participant DB as "Graph DB"
 
-    Note over Admin, UI: 1. ドキュメント取り込み・オントロジー抽出と判定
-    Admin ->> UI: ドキュメントをアップロード / 収集実行
-    UI ->> API: POST /api/v1/documents/upload (バイナリ転送)
-    API ->> UC: execute(file, ext)
-    UC ->> Render: render_to_images(file, ext)
-    Render -->> UC: PNG画像バッファ配列
-    UC ->> LLM: extract_ontology(text, images)
-    LLM -->> UC: 抽出結果 (Nodes & Edges)
+    Admin ->> UI: ドキュメントをアップロード
+    UI ->> WF: パイプライン開始 (POST /api/v1/workflow/start)
+    WF ->> Render: 1. レンダリング要求
+    Render -->> WF: PNG画像群
     
-    UC ->> UC: 未分類概念の有無を判定
+    WF ->> Vision: 2. テキスト化要求 (画像送信)
+    Note over Vision: マルチモーダルLLM<br/>(Vision Model)
+    Vision -->> WF: 構造化テキスト (Markdown)
+    
+    Note over WF: ※将来的にここでテキストの<br/>Human-in-the-loop確認を挟むことが可能
+    
+    WF ->> Ont: 3. オントロジー生成要求 (テキスト送信)
+    Note over Ont: テキストLLM<br/>(抽出Model)
+    Ont ->> Ont: 未分類概念の有無を判定
     
     alt 未分類概念なし
-        UC ->> DB: 本保存処理 (重複IDの場合は差分置換・参照カウント更新)
-        DB -->> UC: 完了
-        UC -->> API: 抽出ステータス (完了)
-        API -->> UI: 処理完了レスポンス (直接インポート)
+        Ont ->> DB: 本保存処理
+        DB -->> Ont: 完了
+        Ont -->> WF: 抽出完了ステータス
+        WF -->> UI: 処理完了レスポンス
     else 未分類概念あり
-        UC ->> DB: 抽出データを一時保存 (Pending 状態)
-        DB -->> UC: 完了
-        UC -->> API: 抽出ステータス (要スキーマ進化)
-        API -->> UI: 処理保留レスポンス (要承認)
+        Ont ->> DB: 抽出データを一時保存 (Pending)
+        DB -->> Ont: 完了
+        Ont -->> WF: 要スキーマ進化ステータス
+        WF -->> UI: 処理保留レスポンス (要承認)
     end
-
-    Note over Admin, UI: 2. AI Agent によるスキーマ進化（Human-in-the-Loop）
-    Admin ->> UI: スキーマ進化コンソール画面を表示
-    UI ->> API: GET /api/v1/schema/candidates
-    API ->> Agent: generate_proposals()
-    Agent ->> DB: 一時保存された未分類データの取得
-    DB -->> Agent: 未分類データ一覧
-    Agent ->> LLM: 既存スキーマとの類似性および判定依頼 (評価プロンプト)
-    LLM -->> Agent: 提案JSON (昇格/統合/却下)
-    Agent -->> API: 提案リスト (EvolutionProposal[])
-    API -->> UI: 提案リストJSON (HTMXでレンダリング)
-    Note over UI: 画面側はHTMXによりHTML片を描画
-
-    Admin ->> UI: 提案を承認 (例: ap:SupportDivision クラスの作成)
-    UI ->> API: POST /api/v1/schema/candidates/:id/approve
-    API ->> Compiler: compile_pydantic_schema(new_class)
-    Note over Compiler: PythonのPydantic定義コードを<br/>自動で書き換え・更新
-    API ->> Compiler: compile_owl_ontology(new_class)
-    Note over Compiler: ontology.ttl ファイルへの追記
-    Compiler -->> API: 完了
-    
-    API ->> UC: 一時保存データからグラフDBへ本保存 (更新されたスキーマを適用)
-    UC ->> DB: 本保存処理
-    DB -->> UC: 完了
-    
-    API -->> UI: 承認および本保存完了 (UIをリフレッシュ)
 ```
 
 ---
@@ -386,29 +374,46 @@ def get_graph_repository(settings: Settings = Depends(get_settings)) -> IGraphRe
 
 ---
 
-## 6. 詳細設計：可変LLM（LMStudio）マルチモーダル抽出
+## 6. 詳細設計：パイプラインAPIとLLM連携
 
-### 6.1 LLM抽象サービス (`app/domain/services/llm_service.py`)
+パイプラインで利用する画像テキスト化（Vision）と、テキストからのJSON抽出（Text LLM）をそれぞれ独立したサービスインターフェースとして定義します。
+
+### 6.1 Vision抽象サービス (`app/domain/services/vision_service.py`)
 ```python
 from abc import ABC, abstractmethod
 from typing import List
-from app.domain.models.graph import ExtractionResult
 
-class ILLMService(ABC):
+class IVisionService(ABC):
     @abstractmethod
-    async def extract_ontology(
+    async def extract_text(
         self,
-        text_content: str,
         image_buffers: List[bytes]
-    ) -> ExtractionResult:
+    ) -> str:
         """
-        ページの画像およびテキストから、オントロジー構造（ノード・エッジ）を抽出します。
+        ページの画像群から、レイアウト情報を維持した構造化テキスト（Markdown等）を抽出します。
         """
         pass
 ```
 
-### 6.2 PydanticによるLLM出力バリデーション
-LLMからの抽出データを型安全にパースするためのスキーマ定義です。
+### 6.2 Text LLM抽象サービス (`app/domain/services/text_llm_service.py`)
+```python
+from abc import ABC, abstractmethod
+from app.domain.models.graph import ExtractionResult
+
+class ITextLLMService(ABC):
+    @abstractmethod
+    async def generate_ontology(
+        self,
+        text_content: str
+    ) -> ExtractionResult:
+        """
+        構造化テキストから、オントロジー構造（ノード・エッジ）を抽出します。
+        """
+        pass
+```
+
+### 6.3 PydanticによるLLM出力バリデーション
+オントロジー抽出用LLMからのJSONデータを型安全にパースするためのスキーマ定義です。
 
 ```python
 from pydantic import BaseModel, Field
@@ -448,8 +453,8 @@ class LLMExtraction(BaseModel):
     relationships: List[ExtractedRelationship]
 ```
 
-### 6.3 LMStudioGateway 実装 (`app/interfaces/gateways/lmstudio_gateway.py`)
-LMStudioが提供するOpenAI互換APIにマルチモーダル（テキスト＋画像バッファ）でリクエストを送信します。
+### 6.4 LMStudioGateway 実装 (`app/interfaces/gateways/lmstudio_gateway.py`)
+LMStudioが提供するOpenAI互換APIを用いて、VisionとText両方の実装を提供します。
 
 ```python
 import base64
@@ -458,29 +463,30 @@ from openai import AsyncOpenAI
 from typing import List
 from fastapi import Depends
 from app.core.config import get_settings, Settings
-from app.domain.services.llm_service import ILLMService
+from app.domain.services.vision_service import IVisionService
+from app.domain.services.text_llm_service import ITextLLMService
 from app.domain.models.graph import ExtractionResult, GraphNode, GraphEdge
 from app.interfaces.gateways.schemas.extraction_schema import LLMExtraction
 
-class LMStudioGateway(ILLMService):
+class LMStudioGateway(IVisionService, ITextLLMService):
     def __init__(self, settings: Settings = Depends(get_settings)):
         self.client = AsyncOpenAI(
             base_url=settings.llm_api_base_url,
             api_key=settings.llm_api_key or "lm-studio",
         )
-        self.model_name = settings.llm_model_name
+        self.vision_model_name = settings.vision_model_name
+        self.text_model_name = settings.text_model_name
         self.temperature = settings.llm_temperature
 
-    async def extract_ontology(self, text_content: str, image_buffers: List[bytes]) -> ExtractionResult:
-        # 1. Assemble messages in OpenAI format
+    async def extract_text(self, image_buffers: List[bytes]) -> str:
+        # Vision Modelを利用してテキスト抽出
         content_parts = [
             {
                 "type": "text",
-                "text": f"以下の行政ドキュメントのビジュアル情報（画像）およびテキストから、行政手続きのオントロジー関係を抽出してください。\n\nドキュメントテキスト:\n{text_content}"
+                "text": "提供された画像に含まれる文書の構造（見出し、表、段落など）を維持し、詳細なMarkdown形式のテキストとして抽出してください。"
             }
         ]
-
-        # 2. Base64-encode images and add to messages
+        
         for buf in image_buffers:
             base64_image = base64.b64encode(buf).decode('utf-8')
             content_parts.append({
@@ -490,9 +496,17 @@ class LMStudioGateway(ILLMService):
                 }
             })
 
-        # 3. Call LLM API
         response = await self.client.chat.completions.create(
-            model=self.model_name,
+            model=self.vision_model_name,
+            temperature=0.0, # テキスト抽出は低いtemperatureを推奨
+            messages=[{"role": "user", "content": content_parts}]
+        )
+        return response.choices[0].message.content or ""
+
+    async def generate_ontology(self, text_content: str) -> ExtractionResult:
+        # Text Modelを利用してJSON抽出
+        response = await self.client.chat.completions.create(
+            model=self.text_model_name,
             temperature=self.temperature,
             response_format={"type": "json_object"},
             messages=[
@@ -502,7 +516,7 @@ class LMStudioGateway(ILLMService):
                 },
                 {
                     "role": "user",
-                    "content": content_parts
+                    "content": f"以下の構造化テキストから行政手続きのオントロジー関係を抽出してください。\n\nテキスト:\n{text_content}"
                 }
             ]
         )
@@ -510,10 +524,8 @@ class LMStudioGateway(ILLMService):
         response_text = response.choices[0].message.content or "{}"
         json_parsed = json.loads(response_text)
 
-        # 4. Validate output with Pydantic
         validated_data = LLMExtraction.model_validate(json_parsed)
 
-        # 5. Map validated data to domain models
         nodes = [
             GraphNode(
                 id=n.id,
