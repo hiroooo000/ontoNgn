@@ -120,3 +120,81 @@ class LMStudioGateway(ITextLLMService):
 
         return ExtractionResult(nodes=nodes, edges=edges)
 ```
+
+## 4. ユースケース定義 (`app/usecases/generate_ontology.py`)
+
+クリーンアーキテクチャの原則に従い、ドメインインターフェースに依存したユースケースを定義します。
+
+```python
+from typing import Optional
+from app.domain.services.text_llm_service import ITextLLMService
+from app.domain.services.graph_repository import IGraphRepository
+from app.domain.models.graph import ExtractionResult
+
+class GenerateOntologyUseCase:
+    def __init__(
+        self,
+        llm_service: ITextLLMService,
+        graph_repository: IGraphRepository
+    ):
+        self.llm_service = llm_service
+        self.graph_repository = graph_repository
+
+    async def execute(self, text_content: str, document_id: Optional[str] = None) -> ExtractionResult:
+        # 1. LLMを用いてテキストからオントロジー（ノード・エッジ）を抽出
+        result = await self.llm_service.generate_ontology(text_content)
+        
+        # 2. 抽出されたノードをデータベースへ保存
+        for node in result.nodes:
+            await self.graph_repository.save_node(node)
+            
+        # 3. 抽出されたエッジをデータベースへ保存
+        for edge in result.edges:
+            await self.graph_repository.save_edge(edge)
+            
+        # 4. 未分類概念（ap:UnclassifiedConcept）が含まれているか確認し、
+        #    必要に応じてステータスを変更またはイベントを発火する処理をここに追加可能。
+        #    （本実装では、後続のワークフローやEvolution Agentがこれを検知する前提）
+
+        return result
+```
+
+## 5. APIルーター定義 (`app/interfaces/api/ontology.py`)
+
+FastAPIのルーターとして、外部（またはConsole UI）からのリクエストを受け付け、UseCaseを呼び出します。
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+from app.core.dependencies import get_text_llm_service, get_graph_repository
+from app.domain.services.text_llm_service import ITextLLMService
+from app.domain.services.graph_repository import IGraphRepository
+from app.usecases.generate_ontology import GenerateOntologyUseCase
+from app.domain.models.graph import ExtractionResult
+
+router = APIRouter()
+
+class GenerateOntologyRequest(BaseModel):
+    document_id: Optional[str] = None
+    text_content: str
+
+@router.post("/generate", response_model=ExtractionResult)
+async def generate_ontology_api(
+    request: GenerateOntologyRequest,
+    llm_service: ITextLLMService = Depends(get_text_llm_service),
+    graph_repository: IGraphRepository = Depends(get_graph_repository)
+):
+    try:
+        usecase = GenerateOntologyUseCase(
+            llm_service=llm_service,
+            graph_repository=graph_repository
+        )
+        result = await usecase.execute(
+            text_content=request.text_content,
+            document_id=request.document_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+```

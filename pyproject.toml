@@ -25,6 +25,7 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-playwright>=0.8.0",
     "ruff>=0.15.14",
+    "taskipy>=1.14.1",
 ]
 
 [tool.pytest.ini_options]
@@ -39,3 +40,13 @@ select = ["E", "F", "I"] # Error, pyflakes, isort
 
 [tool.mypy]
 strict = true
+
+[tool.pyright]
+include = ["app", "tests"]
+extraPaths = ["."]
+
+# 47行目以降をこれに置き換えてください
+
+[tool.taskipy.tasks]
+check = "ruff check . && ruff format . && dmypy run -- ."
+ci = "task check && pytest"
