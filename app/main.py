@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="ontoNgn API", version="0.1.0")
+from app.interfaces.api.ontology import router as ontology_router
+
+app = FastAPI(title="ontoNgn API")
 
 
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"message": "Hello from ontoNgn"}
+
+
+app.include_router(ontology_router, prefix="/api/v1/ontology", tags=["ontology"])

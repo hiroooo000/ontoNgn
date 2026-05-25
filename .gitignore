@@ -8,3 +8,21 @@ sampledata/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# Data
+data/
