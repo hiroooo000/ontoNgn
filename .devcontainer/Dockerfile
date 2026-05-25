@@ -9,5 +9,10 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     vim \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install uv package manager and Playwright system dependencies
+RUN pip install --no-cache-dir uv playwright \
+    && playwright install-deps \
+    && pip uninstall -y playwright
+
 # [Optional] Set the default shell to bash
 ENV SHELL=/bin/bash

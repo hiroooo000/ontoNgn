@@ -15,7 +15,7 @@
           "source.organizeImports": "explicit"
         },
         "python.analysis.extraPaths": [
-          "${workspaceFolder}/src"
+          "${workspaceFolder}/app"
         ]
       },
       "extensions": [
