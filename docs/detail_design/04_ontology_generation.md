@@ -140,7 +140,7 @@ class GenerateOntologyUseCase:
         self.llm_service = llm_service
         self.graph_repository = graph_repository
 
-    async def execute(self, text_content: str, document_id: Optional[str] = None) -> ExtractionResult:
+    async def execute(self, text_content: str) -> ExtractionResult:
         # 1. LLMを用いてテキストからオントロジー（ノード・エッジ）を抽出
         result = await self.llm_service.generate_ontology(text_content)
         
@@ -164,9 +164,7 @@ class GenerateOntologyUseCase:
 FastAPIのルーターとして、外部（またはConsole UI）からのリクエストを受け付け、UseCaseを呼び出します。
 
 ```python
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, Body, Depends, HTTPException
 from app.core.dependencies import get_text_llm_service, get_graph_repository
 from app.domain.services.text_llm_service import ITextLLMService
 from app.domain.services.graph_repository import IGraphRepository
@@ -175,25 +173,18 @@ from app.domain.models.graph import ExtractionResult
 
 router = APIRouter()
 
-class GenerateOntologyRequest(BaseModel):
-    document_id: Optional[str] = None
-    text_content: str
-
 @router.post("/generate", response_model=ExtractionResult)
 async def generate_ontology_api(
-    request: GenerateOntologyRequest,
+    text_content: str = Body(..., media_type="text/plain"),
     llm_service: ITextLLMService = Depends(get_text_llm_service),
     graph_repository: IGraphRepository = Depends(get_graph_repository)
-):
+) -> ExtractionResult:
     try:
         usecase = GenerateOntologyUseCase(
             llm_service=llm_service,
             graph_repository=graph_repository
         )
-        result = await usecase.execute(
-            text_content=request.text_content,
-            document_id=request.document_id
-        )
+        result = await usecase.execute(text_content=text_content)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
