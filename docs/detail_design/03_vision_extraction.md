@@ -1,4 +1,4 @@
-# Visionテキスト抽出
+# 03. Vision Extraction API 詳細設計
 
 ## 1. 抽象サービス定義 (`app/domain/services/vision_service.py`)
 

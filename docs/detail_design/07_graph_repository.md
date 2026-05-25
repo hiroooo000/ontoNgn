@@ -1,4 +1,4 @@
-# データベースの抽象化と低依存設計
+# 07. Graph Repository 詳細設計
 
 特定データベース（Neo4j, Apache AGE, Kùzu等）への依存を排除するため、ドメイン層に共通インターフェースを定義し、FastAPI の Dependency Injection システムにより動的にバインドします。
 

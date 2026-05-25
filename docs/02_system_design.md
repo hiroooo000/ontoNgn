@@ -91,43 +91,53 @@ templates/                      # HTMX用 Jinja2 テンプレート
 
 ## 2. 機能一覧および各機能の概要
 
-| 機能モジュール | 役割の概要 |
-| :--- | :--- |
-| **Workflow Orchestrator** | ドキュメントの読み込みから画像化、テキスト化、オントロジー抽出にいたるパイプライン全体のステート（処理フェーズ・成否）を管理し、非同期にタスクを連動させます。 |
-| **Document Render API** | ドキュメント（PDF/Word/Excel）をパースし、Vision Modelに入力可能な高解像度PNG画像群へ変換します（LibreOffice等を利用）。 |
-| **Vision Extraction API** | レンダリングされた画像群を入力としてマルチモーダルLLMを呼び出し、マークダウンなどの構造化されたレイアウト維持テキストを出力します。 |
-| **Ontology Generation API** | 構造化テキストから、エンティティ（手続き、アクター等）とリレーション（依存関係等）をJSON形式で抽出し、バリデーションした上でデータベースへ保存します。 |
-| **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
-| **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
-| **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
+| 項番 | 機能モジュール | 役割の概要 |
+| :--- | :--- | :--- |
+| 01 | **Workflow Orchestrator** | ドキュメントの読み込みから画像化、テキスト化、オントロジー抽出にいたるパイプライン全体のステート（処理フェーズ・成否）を管理し、非同期タスクキューを用いてタスクを連動させます。各フェーズでの状態遷移やエラー時のリトライ・通知機構も担います。 |
+| 02 | **Document Render API** | ドキュメント（PDF/Word/Excel）をパースし、Vision Modelに入力可能な高解像度PNG画像群へ変換します（LibreOffice等を利用）。 |
+| 03 | **Vision Extraction API** | レンダリングされた画像群を入力としてマルチモーダルLLMを呼び出し、マークダウンなどの構造化されたレイアウト維持テキストを出力します。 |
+| 04 | **Ontology Generation API** | 構造化テキストから、エンティティ（手続き、アクター等）とリレーション（依存関係等）をJSON形式で抽出し、バリデーションした上でデータベースへ保存します。 |
+| 05 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
+| 06 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
+| 07 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
+| 08 | **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
 
 ---
 
-## 3. 各機能を構成する処理一覧
+## 3. API仕様一覧 (API Specifications)
 
-本システムの処理は、FastAPIのエンドポイントとそれに対応する内部クラスの呼び出しによって構成されます。
+本システムはHTMXを利用したフロントエンドコンソールや外部システムからの連携のために、以下のRESTful APIを提供します。
 
-1. **ドキュメント登録・再処理**
-   - `POST /api/v1/documents/upload`: ファイルバッファを受け取り、一時ファイルに保存。
-   - `POST /api/v1/documents/register-path`: ローカルパスを自動収集対象として登録。
-   - `POST /api/v1/documents/{id}/reprocess`: 指定されたドキュメントの再解析をキューイング。
-   - `DELETE /api/v1/documents/{id}`: データのクリーンアップと削除。
+### 3.1 Document API (ドキュメント管理)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/documents/upload` | ファイルをアップロードして登録 | `multipart/form-data` (file) | `{ "document_id": "uuid", "status": "Uploaded" }` |
+| POST | `/api/v1/documents/register-path` | ローカルパスを自動収集対象に登録 | `{ "path": "/path/to/dir" }` | `{ "status": "success", "count": 5 }` |
+| GET | `/api/v1/documents` | 登録済みドキュメント一覧とステータス取得 | - | `[{ "id": "uuid", "filename": "...", "status": "Completed" }]` |
+| GET | `/api/v1/documents/{id}` | 特定ドキュメントの詳細・ステータス取得 | - | `{ "id": "uuid", "status": "Rendering", "error_log": null }` |
+| DELETE | `/api/v1/documents/{id}` | ドキュメントおよび関連データの削除 | - | `{ "status": "deleted" }` |
 
-2. **パイプライン・ワークフロー処理**
-   - `WorkflowOrchestrator.start_pipeline`: 対象ドキュメントIDを取得し、処理開始。
-   - `DocumentRenderer.render_to_images`: PDF/OfficeをPNG画像群バッファに変換。
-   - `IVisionService.extract_text`: 画像バッファ群からVision LLMを呼び出し構造化テキストを生成。
-   - `ITextLLMService.generate_ontology`: テキストから構造化JSONオントロジーを抽出。
+### 3.2 Workflow API (ワークフロー制御)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/workflow/{id}/start` | ドキュメントの解析パイプライン開始 | - | `{ "status": "Rendering" }` |
+| POST | `/api/v1/workflow/{id}/retry` | エラー終了した処理の再試行 | - | `{ "status": "Processing" }` |
+| POST | `/api/v1/workflow/{id}/cancel` | 実行中のパイプラインをキャンセル | - | `{ "status": "Cancelled" }` |
 
-3. **スキーマ進化処理**
-   - `GET /api/v1/schema/candidates`: グラフDBから未分類概念を検索し、Agentによる提案を取得。
-   - `POST /api/v1/schema/candidates/{id}/approve`: 提案された新規クラス定義を承認。
-   - `SchemaCompiler.compile_pydantic_schema`: Pydanticスキーマコードの自動書き換え。
-   - `SchemaCompiler.compile_owl_ontology`: OWL (Turtle) オントロジー定義ファイルの更新。
+### 3.3 Schema Evolution API (スキーマ進化管理)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| GET | `/api/v1/schema/candidates` | 未分類概念とAgent提案一覧の取得 | - | `[{ "concept": "...", "proposal": "..." }]` |
+| POST | `/api/v1/schema/candidates/{id}/approve` | 提案(新規クラス作成など)を承認 | `{ "action": "create_class", "name": "NewClass" }` | `{ "status": "Approved" }` |
+| POST | `/api/v1/schema/candidates/{id}/reject` | 提案を却下または既存クラスへマッピング | `{ "action": "map_existing", "target": "BaseClass" }` | `{ "status": "Rejected" }` |
 
-4. **オントロジー同期・エクスポート**
-   - `IGraphRepository.save_node` / `save_edge`: 各データベース（Neo4j / Kuzu / AGE / rdflib）への書き込み。
-   - `GET /api/v1/documents/export`: LlamaIndex形式のJSON、またはTurtle形式ファイルのエクスポート。
+### 3.4 Export API (エクスポート・連携)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| GET | `/api/v1/export/graphrag` | LlamaIndex等向けJSON形式のエクスポート | `?format=json` | `{ "nodes": [...], "edges": [...] }` |
+| GET | `/api/v1/export/turtle` | 標準的なRDF/Turtle形式でのエクスポート | - | (Turtle format text file) |
+
+※ 内部的な処理の連鎖（`RenderDocumentUseCase`, `ExtractTextUseCase`, `GenerateOntologyUseCase` の呼び出し等）は、ワークフロー制御エンジンにより非同期タスクとして実行・管理されます。
 
 ---
 

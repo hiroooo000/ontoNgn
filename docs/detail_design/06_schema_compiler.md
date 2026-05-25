@@ -1,4 +1,4 @@
-# スキーマコンパイラ
+# 06. Schema Compiler 詳細設計
 
 ## 1. スキーマコンパイラ実装 (`app/domain/services/schema_compiler.py`)
 

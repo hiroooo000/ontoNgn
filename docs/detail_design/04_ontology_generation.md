@@ -1,4 +1,4 @@
-# LLMオントロジー生成
+# 04. Ontology Generation API 詳細設計
 
 ## 1. 抽象サービス定義 (`app/domain/services/text_llm_service.py`)
 

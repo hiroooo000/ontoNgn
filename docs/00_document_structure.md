@@ -20,8 +20,8 @@
 
 `02_system_design.md` で定義されている各機能固有の、実装するうえで必要となる詳細な設計内容やコードレベルのインターフェース定義を機能ごとに分割して格納しています。
 
-- **`01_document_ingestion.md`**
-  - 多様な経路（手動アップロード、ローカルパススキャン、URL自動収集）からのドキュメント収集エンジンの処理詳細。
+- **`01_workflow_orchestrator.md`**
+  - ワークフロー制御エンジンによるパイプラインのステート管理、非同期タスクキューの連動、エラーリカバリ、およびドキュメント収集の起点処理の詳細。
 - **`02_document_render.md`**
   - ドキュメントを画像化する処理（Document Render API）の実装詳細。
 - **`03_vision_extraction.md`**
@@ -34,3 +34,5 @@
   - スキーマ進化提案をPydantic/OWLファイルに反映するSchema Compilerの実装設計。
 - **`07_graph_repository.md`**
   - データベース非依存を担保するためのGraph Repositoryインターフェース（DI）設計。
+- **`08_console_ui.md`**
+  - HTMX + Jinja2 を用いたロジッドレスフロントエンド (Console UI) の設計方針と各種ステータス監視の仕組み。

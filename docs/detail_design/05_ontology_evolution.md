@@ -1,4 +1,4 @@
-# スキーマ進化AIエージェント設計
+# 05. Ontology Evolution Agent 詳細設計
 
 ## 1. AI Agent 判定処理 (`app/domain/services/evolution_agent.py`)
 

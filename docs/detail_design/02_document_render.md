@@ -1,4 +1,4 @@
-# ドキュメントレンダラー詳細設計
+# 02. Document Render API 詳細設計
 
 アップロードされたPDF、Word、Excelデータを、非同期で画像バッファ（PNG）へレンダリングするモジュールです。Word/Excel などの Office ファイルは、LibreOffice をヘッドレスモードで起動し、一時的に PDF へ変換した上で画像化します。
 
