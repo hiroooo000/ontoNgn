@@ -97,10 +97,11 @@ templates/                      # HTMX用 Jinja2 テンプレート
 | 02 | **Document Render API** | ドキュメント（PDF/Word/Excel）をパースし、Vision Modelに入力可能な高解像度PNG画像群へ変換します（LibreOffice等を利用）。 |
 | 03 | **Vision Extraction API** | レンダリングされた画像群を入力としてマルチモーダルLLMを呼び出し、マークダウンなどの構造化されたレイアウト維持テキストを出力します。 |
 | 04 | **Ontology Generation API** | 構造化テキストから、エンティティ（手続き、アクター等）とリレーション（依存関係等）をJSON形式で抽出し、バリデーションした上でデータベースへ保存します。 |
-| 05 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
-| 06 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
-| 07 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
-| 08 | **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
+| 05 | **Ontology Linking Engine** | 新規抽出されたオントロジーについて、アンカー探索と既存サブグラフの取得を行い、LLM推論により既存知識グラフとの関連付け（リンク生成・マージ）を行います。 |
+| 06 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
+| 07 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
+| 08 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
+| 09 | **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
 
 ---
 
@@ -159,7 +160,8 @@ flowchart TD
     ExtractedText --> Workflow
     
     Workflow -->|Step 3| OntologyAPI["Ontology API (テキストからJSON抽出)"]
-    OntologyAPI --> Validate{"Pydanticスキーマバリデーション"}
+    OntologyAPI --> Linking["既存オントロジーとの関連付け (Anchor + Subgraph)"]
+    Linking --> Validate{"Pydanticスキーマバリデーション"}
     
     Validate -->|"NG"| Error["エラー処理・ログ出力"]
     Validate -->|"OK"| ConceptTriage{"未分類概念判定"}
@@ -269,6 +271,10 @@ sequenceDiagram
     
     WF ->> Ont: 3. オントロジー生成要求 (テキスト送信)
     Note over Ont: テキストLLM<br/>(抽出Model)
+    Ont ->> Ont: 3.1 独自オントロジーの抽出
+    Ont ->> DB: 3.2 既存サブグラフ検索 (アンカー探索)
+    DB -->> Ont: 既存コンテキスト (周辺ノード・エッジ)
+    Ont ->> Ont: 3.3 既存グラフとのリンク生成・マージ推論
     Ont ->> Ont: 未分類概念の有無を判定
     
     alt 未分類概念なし
