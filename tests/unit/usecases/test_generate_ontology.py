@@ -42,6 +42,15 @@ class MockGraphRepository(IGraphRepository):
     async def get_schema_definition(self) -> dict[str, Any]:
         return {}
 
+    async def delete_document_graph(self, document_id: str) -> None:
+        pass
+
+    async def search_nodes_by_keywords(self, keywords: List[str], top_k: int) -> List[GraphNode]:
+        return []
+
+    async def get_subgraph(self, anchor_ids: List[str], max_hops: int) -> ExtractionResult:
+        return ExtractionResult(nodes=[], edges=[])
+
 
 @pytest.mark.asyncio
 async def test_generate_ontology_usecase() -> None:
