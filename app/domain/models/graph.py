@@ -19,3 +19,4 @@ class GraphEdge(BaseModel):
 class ExtractionResult(BaseModel):
     nodes: List[GraphNode]
     edges: List[GraphEdge]
+    needs_evolution: bool = False
