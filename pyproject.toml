@@ -50,3 +50,4 @@ extraPaths = ["."]
 [tool.taskipy.tasks]
 check = "ruff check . && ruff format . && dmypy run -- ."
 ci = "task check && pytest"
+start-devsv = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

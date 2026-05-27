@@ -289,3 +289,21 @@ sequenceDiagram
         WF -->> UI: 処理保留レスポンス (要承認)
     end
 ```
+
+---
+
+## 7. 環境設定と設定値 (Environment Configuration)
+
+本システムは `app.core.config.Settings` (Pydantic Settings) を利用してアプリケーション全体の設定を管理しています。
+実行時に必要な設定値は、環境変数またはプロジェクト直下の `.env` ファイルから読み込まれます。
+
+**セットアップに関する注意**: 
+開発を開始・実行する際は、リポジトリに含まれる `.env.example` を `.env` に変更（またはコピー）して使用してください。
+
+主な設定項目：
+- `GRAPH_DB_TYPE`: 使用するグラフデータベースの種類 (例: `kuzu`)
+- `KUZU_DB_PATH`: Kuzuデータベースの保存パス (例: `./data/kuzu`)
+- `LLM_API_BASE_URL`: LLM推論サーバーのエンドポイント (デフォルトでローカルのLMStudio等のAPIに接続可能)
+- `LLM_API_KEY`: API通信に使用する認証キー
+- `TEXT_MODEL_NAME`: オントロジー抽出や関連付けに使用するモデル名
+- `LLM_TEMPERATURE`: LLMの出力温度（決定論的な挙動を担保するため、基本的には `0.0` を推奨）
