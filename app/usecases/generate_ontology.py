@@ -10,7 +10,17 @@ class GenerateOntologyUseCase:
 
     async def execute(self, text_content: str) -> ExtractionResult:
         # Step 1: LLMによる生データの抽出
-        raw_graph = await self.llm_service.generate_ontology(text_content)
+        raw_graph = await self.execute_extraction(text_content)
+
+        # Step 2〜6: コンテキスト統合とDB保存
+        return await self.execute_context_linking(raw_graph, text_content)
+
+    async def execute_extraction(self, text_content: str) -> ExtractionResult:
+        """テキストから独自のオントロジー（生データ）を抽出する"""
+        return await self.llm_service.generate_ontology(text_content)
+
+    async def execute_context_linking(self, raw_graph: ExtractionResult, text_content: str) -> ExtractionResult:
+        """抽出されたオントロジーと既存DBの知識を統合し、必要に応じて進化フラグを付与して保存する"""
 
         # Step 2: アンカーキーワードの抽出
         anchor_keywords = await self.llm_service.extract_anchor_keywords(text_content)
