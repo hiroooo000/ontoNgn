@@ -20,6 +20,15 @@ class ExtractedNode(BaseModel):
     properties: Dict[str, Any] = Field(default_factory=dict)
 
 
+class KeywordsExtraction(BaseModel):
+    keywords: List[str]
+
+
+class AnchorValidation(BaseModel):
+    is_valid: bool
+    reason: str
+
+
 class ExtractedRelationship(BaseModel):
     source: str
     target: str

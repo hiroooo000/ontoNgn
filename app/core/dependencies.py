@@ -35,6 +35,15 @@ class DummyGraphRepository(IGraphRepository):
     async def get_schema_definition(self) -> dict[str, Any]:
         return {}
 
+    async def delete_document_graph(self, document_id: str) -> None:
+        pass
+
+    async def search_nodes_by_keywords(self, keywords: List[str], top_k: int) -> List[GraphNode]:
+        return []
+
+    async def get_subgraph(self, anchor_ids: List[str], max_hops: int) -> ExtractionResult:
+        return ExtractionResult(nodes=[], edges=[])
+
 
 def get_graph_repository(settings: Settings = Depends(get_settings)) -> IGraphRepository:
     # 動作確認用のダミーリポジトリを返します（実DB連携までの暫定措置）

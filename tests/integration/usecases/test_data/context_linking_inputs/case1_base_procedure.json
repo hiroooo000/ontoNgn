@@ -1,0 +1,247 @@
+{
+  "nodes": [
+    {
+      "id": "ap:proc_01",
+      "label": "身体障害者手帳の交付申請",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "身体に障害のある方が各種サービスを受けるために必要な手帳を申請する手続き"
+      }
+    },
+    {
+      "id": "ap:actor_01",
+      "label": "身体に障害のある方",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "申請者本人"
+      }
+    },
+    {
+      "id": "ap:actor_02",
+      "label": "代理の方",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "本人に代わって申請を行う者"
+      }
+    },
+    {
+      "id": "ap:org_01",
+      "label": "障害福祉課",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "申請窓口"
+      }
+    },
+    {
+      "id": "ap:org_02",
+      "label": "転出先の福祉事務所",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "区外転出時の窓口"
+      }
+    },
+    {
+      "id": "ap:doc_01",
+      "label": "身体障害者手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "交付対象となる手帳"
+      }
+    },
+    {
+      "id": "ap:doc_02",
+      "label": "身体障害者診断書・意見書",
+      "properties": {
+        "type": "ap:Document",
+        "description": "指定医師が作成する書類"
+      }
+    },
+    {
+      "id": "ap:doc_03",
+      "label": "マイナンバーカード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請に必要な本人確認書類"
+      }
+    },
+    {
+      "id": "ap:doc_04",
+      "label": "通知カード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "マイナンバーカードに代わる本人確認書類"
+      }
+    },
+    {
+      "id": "ap:doc_05",
+      "label": "身分証明書",
+      "properties": {
+        "type": "ap:Document",
+        "description": "代理申請時または本人確認用"
+      }
+    },
+    {
+      "id": "ap:doc_06",
+      "label": "顔写真",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請用写真（縦4cm×横3cm、脱帽、白背景）"
+      }
+    },
+    {
+      "id": "ap:doc_07",
+      "label": "印鑑",
+      "properties": {
+        "type": "ap:Document",
+        "description": "記載事項変更等の手続き用"
+      }
+    },
+    {
+      "id": "ap:cond_01",
+      "label": "居住地の変更",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "区外に転出した場合"
+      }
+    },
+    {
+      "id": "ap:cond_02",
+      "label": "氏の変更",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "氏名が変わった場合"
+      }
+    },
+    {
+      "id": "ap:cond_03",
+      "label": "本人の死亡",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "手帳保持者が死亡した場合"
+      }
+    },
+    {
+      "id": "ap:cond_04",
+      "label": "障害に該当不再",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "障害の程度が基準に合わなくなった場合"
+      }
+    },
+    {
+      "id": "ap:cond_05",
+      "label": "手帳の紛失・破損・汚損",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "手帳をなくした、壊れた、汚れた場合"
+      }
+    },
+    {
+      "id": "ap:legal_01",
+      "label": "身体障害者障害程度等級表",
+      "properties": {
+        "type": "ap:LegalBasis",
+        "description": "障害程度の基準を示す資料"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:actor_01",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:actor_02",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:org_01",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_02",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_06",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_03",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_04",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_05",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_01",
+      "relation_type": "ap:producesDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_01",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_02",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_03",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_04",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_05",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:cond_01",
+      "target_id": "ap:org_02",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:legal_01",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    }
+  ],
+  "needs_evolution": false
+}

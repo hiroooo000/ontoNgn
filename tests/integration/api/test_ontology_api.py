@@ -11,8 +11,19 @@ from app.main import app
 
 class DummyLLMService(ITextLLMService):
     async def generate_ontology(self, text_content: str) -> ExtractionResult:
-        node = GraphNode(id="ap:Test", label="Test", properties={})
-        return ExtractionResult(nodes=[node], edges=[])
+        return ExtractionResult(
+            nodes=[GraphNode(id="ap:Procedure1", label="Procedure", properties={"type": "ap:Procedure"})],
+            edges=[],
+        )
+
+    async def extract_anchor_keywords(self, text_content: str) -> list[str]:
+        return []
+
+    async def validate_anchor(self, text_content: str, candidate_node: GraphNode) -> bool:
+        return True
+
+    async def generate_links(self, new_graph: ExtractionResult, context_subgraph: ExtractionResult) -> ExtractionResult:
+        return new_graph
 
 
 class DummyGraphRepository(IGraphRepository):
@@ -37,6 +48,15 @@ class DummyGraphRepository(IGraphRepository):
     async def get_schema_definition(self) -> dict[str, Any]:
         return {}
 
+    async def delete_document_graph(self, document_id: str) -> None:
+        pass
+
+    async def search_nodes_by_keywords(self, keywords: List[str], top_k: int) -> List[GraphNode]:
+        return []
+
+    async def get_subgraph(self, anchor_ids: List[str], max_hops: int) -> ExtractionResult:
+        return ExtractionResult(nodes=[], edges=[])
+
 
 app.dependency_overrides[get_text_llm_service] = lambda: DummyLLMService()
 app.dependency_overrides[get_graph_repository] = lambda: DummyGraphRepository()
@@ -49,4 +69,4 @@ def test_generate_ontology_endpoint() -> None:
     assert response.status_code == 200
     data = response.json()
     assert len(data["nodes"]) == 1
-    assert data["nodes"][0]["id"] == "ap:Test"
+    assert data["nodes"][0]["id"] == "ap:Procedure1"

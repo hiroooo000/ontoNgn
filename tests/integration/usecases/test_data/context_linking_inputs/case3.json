@@ -1,0 +1,297 @@
+{
+  "nodes": [
+    {
+      "id": "ap:proc_mental_handbook_apply",
+      "label": "精神障害者保健手帳の申請・更新・等級変更",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "精神障害のある方が手帳の申請、更新、等級変更を行う手続き"
+      }
+    },
+    {
+      "id": "ap:actor_person_with_mental_disability",
+      "label": "精神障害のある方",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "長期にわたり日常生活又は社会生活への制約がある方。統合失調症、気分障害、てんかん、依存症、高次脳機能障害、発達障害などが対象"
+      }
+    },
+    {
+      "id": "ap:org_disability_welfare_section",
+      "label": "障害福祉課知的障害者支援係",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "問い合わせ先"
+      }
+    },
+    {
+      "id": "ap:doc_handbook",
+      "label": "精神障害者保健手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "障害の程度を証明するもので、等級(1～3級)に応じた支援を受けられる"
+      }
+    },
+    {
+      "id": "ap:doc_medical_cert",
+      "label": "手帳診断書又は精神障害者年金診断書のコピー",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請時に必要。初診日から6か月を経過した日以降作成のもの"
+      }
+    },
+    {
+      "id": "ap:doc_photo",
+      "label": "写真",
+      "properties": {
+        "type": "ap:Document",
+        "description": "縦4cm×横3cm、上半身、1年以内に撮影したもの1枚"
+      }
+    },
+    {
+      "id": "ap:doc_my_number_card",
+      "label": "マイナンバーカード又は通帳カード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請時に必要"
+      }
+    },
+    {
+      "id": "ap:doc_id",
+      "label": "身分証明書",
+      "properties": {
+        "type": "ap:Document",
+        "description": "マイナンバーカードを持参の場合は不要"
+      }
+    },
+    {
+      "id": "ap:doc_current_handbook",
+      "label": "現在お持ちの手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "更新の場合に必要"
+      }
+    },
+    {
+      "id": "ap:doc_postcard",
+      "label": "氏名を記入したはがき",
+      "properties": {
+        "type": "ap:Document",
+        "description": "手帳交付の通知を希望する場合に必要"
+      }
+    },
+    {
+      "id": "ap:cond_long_term_restriction",
+      "label": "長期の日常生活又は社会生活への制約",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "対象となる方の条件"
+      }
+    },
+    {
+      "id": "ap:cond_6_months_passed",
+      "label": "初診日から6か月経過",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "診断書作成の条件"
+      }
+    },
+    {
+      "id": "ap:cond_3_months_apply",
+      "label": "診断書作成から3か月以内の申請",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "申請期限の条件"
+      }
+    },
+    {
+      "id": "ap:cond_validity_2_years",
+      "label": "有効期間2年",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "手帳の有効期間は原則2年間"
+      }
+    },
+    {
+      "id": "ap:cond_renewal_3_months_before",
+      "label": "更新申請期間",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "有効期間の3か月前から申請可能"
+      }
+    },
+    {
+      "id": "ap:law_level_criteria",
+      "label": "精神障害者保健福祉手帳障害等級判定基準",
+      "properties": {
+        "type": "ap:LegalBasis",
+        "description": "障害程度の基準が記載されている資料"
+      }
+    },
+    {
+      "id": "ap:proc_change_to_card",
+      "label": "カード形式の手帳へ変更",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "申請時に従来の紙形式かカード形式かを選択・通報する手続き"
+      }
+    },
+    {
+      "id": "ap:org_municipal_government",
+      "label": "市町村役場",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "既存サブグラフの文脈から推測される行政主体"
+      }
+    },
+    {
+      "id": "ap:law_disability_welfare_act",
+      "label": "障害者総合支援法",
+      "properties": {
+        "type": "ap:LegalBasis",
+        "description": "既存サブグラフの文脈から推測される上位法"
+      }
+    },
+    {
+      "id": "ap:proc_disability_welfare_application",
+      "label": "障害福祉サービス申請手続き",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "既存サブグラフの文脈から推測される関連手続き"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:actor_person_with_mental_disability",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:org_disability_welfare_section",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_medical_cert",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_photo",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_my_number_card",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_id",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_current_handbook",
+      "relation_type": "ap:requiresDocument",
+      "properties": {
+        "condition": "更新の場合"
+      }
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_postcard",
+      "relation_type": "ap:requiresDocument",
+      "properties": {
+        "condition": "通知を希望する場合"
+      }
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:doc_handbook",
+      "relation_type": "ap:producesDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:cond_long_term_restriction",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:doc_medical_cert",
+      "target_id": "ap:cond_6_months_passed",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:cond_3_months_apply",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:cond_validity_2_years",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:cond_renewal_3_months_before",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:law_level_criteria",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_to_card",
+      "target_id": "ap:actor_person_with_mental_disability",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:proc_change_to_card",
+      "relation_type": "ap:nextProcedure",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:org_disability_welfare_section",
+      "target_id": "ap:org_municipal_government",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:law_disability_welfare_act",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:law_level_criteria",
+      "target_id": "ap:law_disability_welfare_act",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_mental_handbook_apply",
+      "target_id": "ap:proc_disability_welfare_application",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    }
+  ],
+  "needs_evolution": false
+}

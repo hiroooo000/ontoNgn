@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "id": "ap:legal_mental_health_welfare_law",
+      "label": "精神保健及び精神障害者の福祉に関する法律",
+      "properties": {
+        "type": "ap:LegalBasis",
+        "description": "手帳の交付・変更および精神保健福祉情報冊子の発行の法的根拠"
+      }
+    },
+    {
+      "id": "ap:procedure_initial_issuance",
+      "label": "手帳の初回交付手続き",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "精神障害者保健福祉手帳の初めての手帳を交付する手続き"
+      }
+    },
+    {
+      "id": "ap:doc_application_form",
+      "label": "申請書",
+      "properties": {
+        "type": "ap:Document",
+        "description": "手帳の変更または初回交付時に提出する公式申請書"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "ap:procedure_handbook_change",
+      "target_id": "ap:legal_mental_health_welfare_law",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:procedure_michishirube",
+      "target_id": "ap:legal_mental_health_welfare_law",
+      "relation_type": "ap:basedOnLaw",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:procedure_initial_issuance",
+      "target_id": "ap:doc_handbook",
+      "relation_type": "ap:producesDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:procedure_handbook_change",
+      "target_id": "ap:procedure_initial_issuance",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:procedure_handbook_change",
+      "target_id": "ap:doc_application_form",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:procedure_initial_issuance",
+      "target_id": "ap:procedure_handbook_change",
+      "relation_type": "ap:nextProcedure",
+      "properties": {}
+    }
+  ],
+  "needs_evolution": false
+}
