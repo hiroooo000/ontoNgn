@@ -1,0 +1,329 @@
+{
+  "nodes": [
+    {
+      "id": "ap:proc_card_change",
+      "label": "カード形式の手帳へ変更",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "既存の手帳をカード形式に変更する手続き"
+      }
+    },
+    {
+      "id": "ap:proc_new_update",
+      "label": "愛の手帳の新規申請・更新申請",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "愛の手帳の新規発行または更新申請手続き"
+      }
+    },
+    {
+      "id": "ap:proc_change_return",
+      "label": "手帳の内容変更・返却申請",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "手帳の内容変更または返却申請手続き"
+      }
+    },
+    {
+      "id": "ap:actor_target",
+      "label": "知的障碍のある方",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "愛の手帳の申請対象者"
+      }
+    },
+    {
+      "id": "ap:actor_guardian",
+      "label": "保護者",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "障碍者の保護者または代理人"
+      }
+    },
+    {
+      "id": "ap:doc_handbook",
+      "label": "手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "既存の手帳または愛の手帳"
+      }
+    },
+    {
+      "id": "ap:doc_my_number",
+      "label": "マイナンバーカード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "カード形式変更時に必要な身分証明書"
+      }
+    },
+    {
+      "id": "ap:doc_notification",
+      "label": "通知カード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "カード形式変更時に必要な身分証明書"
+      }
+    },
+    {
+      "id": "ap:doc_photo",
+      "label": "顔写真",
+      "properties": {
+        "type": "ap:Document",
+        "description": "縦4cm×横3cm、脱帽、白黒"
+      }
+    },
+    {
+      "id": "ap:doc_criteria",
+      "label": "愛の手帳判定基準表",
+      "properties": {
+        "type": "ap:Document",
+        "description": "障碍程度判定の基準資料"
+      }
+    },
+    {
+      "id": "ap:doc_damaged",
+      "label": "破損・汚損した手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "紛失・破損・汚損時の提出物"
+      }
+    },
+    {
+      "id": "ap:org_contact",
+      "label": "障害福祉部障害者支援課",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "問い合わせ先"
+      }
+    },
+    {
+      "id": "ap:org_child",
+      "label": "文京区児童課",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "18歳未満の申請先"
+      }
+    },
+    {
+      "id": "ap:org_center",
+      "label": "東京都身障者福祉センター",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "18歳以上の申請先"
+      }
+    },
+    {
+      "id": "ap:org_office",
+      "label": "東京都出張所（セントラルプラザ）14階",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "18歳以上の申請先"
+      }
+    },
+    {
+      "id": "ap:cond_age18",
+      "label": "18歳未満",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "申請区分条件"
+      }
+    },
+    {
+      "id": "ap:cond_age18plus",
+      "label": "18歳以上",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "申請区分条件"
+      }
+    },
+    {
+      "id": "ap:cond_residence",
+      "label": "居住地の変更",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "内容変更条件"
+      }
+    },
+    {
+      "id": "ap:cond_name",
+      "label": "氏名の変更",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "内容変更条件"
+      }
+    },
+    {
+      "id": "ap:cond_guardian",
+      "label": "保護者の変更",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "内容変更条件"
+      }
+    },
+    {
+      "id": "ap:cond_death",
+      "label": "本人の死亡",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "内容変更条件"
+      }
+    },
+    {
+      "id": "ap:cond_damage",
+      "label": "手帳の紛失・破損・汚損",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "内容変更条件"
+      }
+    },
+    {
+      "id": "ap:cond_recheck",
+      "label": "年齢更新の再判定（3歳・6歳・12歳）",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "更新条件"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "ap:proc_card_change",
+      "target_id": "ap:doc_handbook",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_card_change",
+      "target_id": "ap:doc_my_number",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_card_change",
+      "target_id": "ap:doc_notification",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_card_change",
+      "target_id": "ap:doc_photo",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:actor_target",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:doc_handbook",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:doc_criteria",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:org_child",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:org_center",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:org_office",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:cond_age18",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:cond_age18plus",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:cond_recheck",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_new_update",
+      "target_id": "ap:doc_handbook",
+      "relation_type": "ap:producesDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:actor_guardian",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:cond_residence",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:cond_name",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:cond_guardian",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:cond_death",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:cond_damage",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:doc_damaged",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:doc_photo",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_change_return",
+      "target_id": "ap:org_contact",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    }
+  ],
+  "needs_evolution": false
+}

@@ -1,0 +1,183 @@
+{
+  "nodes": [
+    {
+      "id": "ap:proc_01",
+      "label": "精神障害者福祉手当の申請",
+      "properties": {
+        "type": "ap:Procedure",
+        "description": "区制度の精神障害者福祉手当への申請手続き"
+      }
+    },
+    {
+      "id": "ap:actor_01",
+      "label": "精神障害者保健福祉手当1級所持者",
+      "properties": {
+        "type": "ap:Actor",
+        "description": "精神障害者保健福祉手当1級をお持ちの方"
+      }
+    },
+    {
+      "id": "ap:org_01",
+      "label": "障害者課扶養手当係",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "申請窓口・担当部署"
+      }
+    },
+    {
+      "id": "ap:org_02",
+      "label": "予防対策課精神保健担当",
+      "properties": {
+        "type": "ap:Organization",
+        "description": "TEL 03-5803-1212 FAX 03-5803-1352"
+      }
+    },
+    {
+      "id": "ap:doc_01",
+      "label": "精神障害者保健福祉手帳",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請時に必須の提出書類"
+      }
+    },
+    {
+      "id": "ap:doc_02",
+      "label": "預金通帳又はキャッシュカード（本人名義）",
+      "properties": {
+        "type": "ap:Document",
+        "description": "振込先確認用"
+      }
+    },
+    {
+      "id": "ap:doc_03",
+      "label": "申請者のマイナンバーカード又は通知カード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "本人確認用"
+      }
+    },
+    {
+      "id": "ap:doc_04",
+      "label": "扶養義務者のマイナンバーカード",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請者が20歳未満の場合の提出書類"
+      }
+    },
+    {
+      "id": "ap:doc_05",
+      "label": "扶養義務者の通知カードと身分証明書",
+      "properties": {
+        "type": "ap:Document",
+        "description": "申請者が20歳未満の場合の提出書類"
+      }
+    },
+    {
+      "id": "ap:cond_01",
+      "label": "対象者が20歳未満の場合",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "扶養義務者のマイナンバーカード、または通知カードと身分証明書の提出が必要"
+      }
+    },
+    {
+      "id": "ap:cond_02",
+      "label": "都内他区市町村で同種手当を受給中",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "支給された最後の月の翌月から起算して3か月以内に申請すること"
+      }
+    },
+    {
+      "id": "ap:cond_03",
+      "label": "4月分支給の場合",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "7月31日までに申請すること"
+      }
+    },
+    {
+      "id": "ap:cond_04",
+      "label": "受給制限条件",
+      "properties": {
+        "type": "ap:Condition",
+        "description": "障害等級1級となった年齢が65歳以上、他手当受給者、施設入所者、所得限度額超過など"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:actor_01",
+      "relation_type": "ap:hasTargetActor",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:org_01",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:org_02",
+      "relation_type": "ap:administeredBy",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_01",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_02",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_03",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_04",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:doc_05",
+      "relation_type": "ap:requiresDocument",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_01",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_02",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_03",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    },
+    {
+      "source_id": "ap:proc_01",
+      "target_id": "ap:cond_04",
+      "relation_type": "ap:hasPrerequisite",
+      "properties": {}
+    }
+  ],
+  "needs_evolution": false
+}

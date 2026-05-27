@@ -26,3 +26,6 @@ __pycache__/
 
 # Data
 data/
+
+# KuzuDB Test Output
+*.kuzu_db

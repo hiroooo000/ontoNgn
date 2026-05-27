@@ -22,7 +22,7 @@ class KuzuGraphRepository(IGraphRepository):
         params = {
             "id": node.id,
             "label": node.label,
-            "props": json.dumps(node.properties),
+            "props": json.dumps(node.properties, ensure_ascii=False),
             "doc_ids": [],  # We can implement sourceDocumentIds later if needed
         }
         self.conn.execute(query, parameters=params)
@@ -54,7 +54,7 @@ class KuzuGraphRepository(IGraphRepository):
             "src_id": edge.source_id,
             "dst_id": edge.target_id,
             "rel_type": edge.relation_type,
-            "props": json.dumps(edge.properties),
+            "props": json.dumps(edge.properties, ensure_ascii=False),
         }
         self.conn.execute(query, parameters=params)
 
@@ -145,7 +145,7 @@ class KuzuGraphRepository(IGraphRepository):
                     props["sourceDocumentIds"] = doc_ids
                     self.conn.execute(
                         "MATCH (n:Entity {id: $id}) SET n.properties_json = $props",
-                        parameters={"id": node_id, "props": json.dumps(props)},
+                        parameters={"id": node_id, "props": json.dumps(props, ensure_ascii=False)},
                     )
 
         # Edges should similarly be deleted, but DETACH DELETE takes care of edges connected to deleted nodes.
