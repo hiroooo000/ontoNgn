@@ -188,11 +188,11 @@
             
             const options = {
                 nodes: {
-                    shape: 'dot',
-                    size: 20,
+                    shape: 'box',
+                    margin: { top: 8, bottom: 8, left: 12, right: 12 },
                     font: {
                         color: '#f8fafc',
-                        size: 14, // px
+                        size: 14,
                         face: 'sans-serif'
                     },
                     borderWidth: 2,
@@ -213,9 +213,11 @@
                         highlight: '#94a3b8'
                     },
                     font: {
-                        color: '#94a3b8',
+                        color: '#cbd5e1',
                         size: 11,
-                        align: 'middle'
+                        align: 'horizontal',
+                        background: '#0f172a',
+                        strokeWidth: 0
                     },
                     arrows: {
                         to: {enabled: true, scaleFactor: 0.5}
@@ -225,17 +227,21 @@
                     }
                 },
                 physics: {
+                    solver: 'forceAtlas2Based',
                     forceAtlas2Based: {
-                        gravitationalConstant: -50,
+                        gravitationalConstant: -100,
                         centralGravity: 0.01,
-                        springLength: 100,
-                        springConstant: 0.08
+                        springLength: 200,
+                        springConstant: 0.08,
+                        damping: 0.4,
+                        avoidOverlap: 1
                     },
                     maxVelocity: 50,
-                    solver: 'forceAtlas2Based',
                     timestep: 0.35,
                     stabilization: {
-                        iterations: 150
+                        enabled: true,
+                        iterations: 500,
+                        updateInterval: 100
                     }
                 },
                 interaction: {
@@ -255,6 +261,19 @@
                     showNodeProperties(nodeId);
                 } else {
                     hideNodeProperties();
+                }
+            });
+
+            // Auto-fit after the physics engine stabilizes the layout
+            network.on("stabilized", function () {
+                if (window._needsFit) {
+                    network.fit({
+                        animation: {
+                            duration: 800,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                    window._needsFit = false;
                 }
             });
         }
@@ -346,22 +365,23 @@
                     });
                 });
                 
-                // Update Datasets
+                // Stop physics temporarily while adding data
+                if (network) network.setOptions({ physics: { enabled: false } });
+                
                 nodesDataset.clear();
                 edgesDataset.clear();
                 
                 nodesDataset.add(visNodes);
                 edgesDataset.add(visEdges);
                 
-                // Optional: Fit all nodes in view
                 if (network) {
-                    network.fit({
-                        animation: {
-                            duration: 1000,
-                            easingFunction: 'easeInOutQuad'
-                        }
-                    });
+                    // Re-enable physics and force silent stabilization
+                    network.setOptions({ physics: { enabled: true } });
+                    network.stabilize(500); // 500 iterations silently
                 }
+                
+                // Fit will be handled by the 'stabilized' event listener
+                window._needsFit = true;
                 
             } catch (error) {
                 console.error("Failed to fetch graph data:", error);
