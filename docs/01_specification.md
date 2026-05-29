@@ -44,7 +44,7 @@ Version: 2.0.0
 5. **型安全なバリデーション**:
    - LLMから返却されたJSONデータを Pydantic スキーマで検証し、ドメインモデルに変換する。
 6. **DB非依存のオントロジー管理 (IGraphRepository)**:
-   - 設定ファイル（`.env`）一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF）に保存・同期する。
+   - 設定ファイル（`.env.dev`等）一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF）に保存・同期する。
 7. **GraphRAG 連携（エクスポート機能）**:
    - 外部グラフDBに直接ロードできる構造化JSONおよびTurtle形式（.ttl）ファイルでエクスポートする。
 8. **マルチランゲージ対応 (Multi-language Support)**:
@@ -52,6 +52,9 @@ Version: 2.0.0
    - 抽出するオントロジーの記述言語設定をリクエストから動的に指定可能。
 9. **ドキュメント収集エンジン (Ingestion Engine)**:
    - ユーザーからの手動アップロードだけでなく、ローカルフォルダの定期スキャンや、指定URLからの自動ダウンロードなど、多様な経路からのドキュメント収集と解析の自動トリガーをサポートする。
+10. **グラフ可視化・探索機能 (Graph Visualization)**:
+    - グラフDBに蓄積されたオントロジーデータを、動的なネットワークグラフとして可視化する機能。
+    - キーワード検索を起点とし、ヒットしたノード周辺のサブグラフを段階的に探索・表示できる（vis-network等を利用）。
 
 ### 2.2 非機能要件 (Non-Functional Requirements)
 1. **クリーンアーキテクチャによる低依存設計**:
@@ -104,11 +107,11 @@ Version: 2.0.0
    ```
    *(※ 内部で `pdf2image` を使用するため、システムに `poppler-utils` がインストールされている必要があります)*
 
-2. **環境変数の設定 (`.env`)**:
-   プロジェクトのルートディレクトリに `.env` ファイルを作成し、必要な設定を行います。
+2. **環境変数の設定 (`.env.dev`)**:
+   プロジェクトのルートディレクトリに `.env.dev` ファイルを作成し、必要な設定を行います。
    ```env
    GRAPH_DB_TYPE=kuzu
-   KUZU_DB_PATH=./data/kuzu
+   KUZU_DB_PATH=tests/integration/manual_tests/integration.kuzu_db
    LLM_API_BASE_URL=http://localhost:1234/v1
    VISION_MODEL_NAME=vision-model-name
    TEXT_MODEL_NAME=text-model-name

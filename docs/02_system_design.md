@@ -19,7 +19,7 @@ Version: 2.0.0
                                |
 +------------------------------v----------------------------------------+
 |                        Interface Adapters                             |
-|  - REST API Routers (Workflow, Render, Vision, Ontology)              |
+|  - REST API Routers (Workflow, Render, Vision, Ontology, Graph)       |
 |  - LMStudioGateway (OpenAI Python Client Wrapper)                     |
 |  - DocumentRenderer (PDF/Word/Excel to PNG)                           |
 |  - [Concrete Repository Adapters]                                     |
@@ -70,7 +70,8 @@ app/
 │   │   ├── workflow.py         # ワークフロー制御API
 │   │   ├── render.py           # レンダリングAPI
 │   │   ├── vision.py           # Vision抽出API
-│   │   └── ontology.py         # オントロジー生成・管理API
+│   │   ├── ontology.py         # オントロジー生成・管理API
+│   │   └── graph.py            # グラフ可視化・検索API
 │   ├── gateways/               # 外部連携の具象クラス
 │   │   ├── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
 │   │   ├── kuzu_repository.py  # KuzuDBリポジトリ
@@ -84,6 +85,7 @@ app/
         └── session.py          # DBセッション管理
 templates/                      # HTMX用 Jinja2 テンプレート
 ├── index.html
+├── graph.html                  # グラフ可視化UI (vis-network)
 └── partials/
 ```
 
@@ -102,6 +104,7 @@ templates/                      # HTMX用 Jinja2 テンプレート
 | 07 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
 | 08 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
 | 09 | **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
+| 10 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（vis-network等を利用）。 |
 
 ---
 
@@ -137,6 +140,11 @@ templates/                      # HTMX用 Jinja2 テンプレート
 | :--- | :--- | :--- | :--- | :--- |
 | GET | `/api/v1/export/graphrag` | LlamaIndex等向けJSON形式のエクスポート | `?format=json` | `{ "nodes": [...], "edges": [...] }` |
 | GET | `/api/v1/export/turtle` | 標準的なRDF/Turtle形式でのエクスポート | - | (Turtle format text file) |
+
+### 3.5 Graph API (グラフ可視化・探索)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| GET | `/api/v1/graph/search` | キーワードに基づくアンカーノード検索とサブグラフ取得 | `?q=keyword&hops=1` | `{ "nodes": [...], "edges": [...] }` |
 
 ※ 内部的な処理の連鎖（`RenderDocumentUseCase`, `ExtractTextUseCase`, `GenerateOntologyUseCase` の呼び出し等）は、ワークフロー制御エンジンにより非同期タスクとして実行・管理されます。
 
@@ -295,14 +303,12 @@ sequenceDiagram
 ## 7. 環境設定と設定値 (Environment Configuration)
 
 本システムは `app.core.config.Settings` (Pydantic Settings) を利用してアプリケーション全体の設定を管理しています。
-実行時に必要な設定値は、環境変数またはプロジェクト直下の `.env` ファイルから読み込まれます。
+実行時に必要な設定値は、環境変数 `APP_ENV`（デフォルトは `test`） に応じて、プロジェクト直下の `.env.{APP_ENV}` ファイルから読み込まれます。
 
-**セットアップに関する注意**: 
-開発を開始・実行する際は、リポジトリに含まれる `.env.example` を `.env` に変更（またはコピー）して使用してください。
+開発を開始・実行する際は、リポジトリに含まれる `.env.template` を `.env.dev` 等にコピーして使用してください。
 
-主な設定項目：
-- `GRAPH_DB_TYPE`: 使用するグラフデータベースの種類 (例: `kuzu`)
-- `KUZU_DB_PATH`: Kuzuデータベースの保存パス (例: `./data/kuzu`)
+### 主な設定項目 (Core Settings)
+- `KUZU_DB_PATH`: Kuzuデータベースの保存パス (例: `tests/integration/manual_tests/integration.kuzu_db`)
 - `LLM_API_BASE_URL`: LLM推論サーバーのエンドポイント (デフォルトでローカルのLMStudio等のAPIに接続可能)
 - `LLM_API_KEY`: API通信に使用する認証キー
 - `TEXT_MODEL_NAME`: オントロジー抽出や関連付けに使用するモデル名

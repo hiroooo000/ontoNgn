@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +11,11 @@ class Settings(BaseSettings):
     text_model_name: str = "local-model"
     llm_temperature: float = 0.0
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=f".env.{os.getenv('APP_ENV', 'test')}",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 def get_settings() -> Settings:

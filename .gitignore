@@ -11,6 +11,9 @@ Thumbs.db
 
 # Environments
 .env
+.env.dev
+.env.test
+.env.prod
 .venv/
 venv/
 env/
