@@ -5,7 +5,7 @@ from app.core.config import Settings
 
 def test_config_default_kuzu_db_path() -> None:
     settings = Settings()
-    assert settings.kuzu_db_path == "./data/kuzu"
+    assert settings.kuzu_db_path == "tests/test_output.kuzu_db"
 
 
 def test_config_env_override() -> None:

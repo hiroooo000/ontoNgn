@@ -11,7 +11,11 @@ class KuzuDB:
     def __new__(cls, settings: Settings | None = None) -> "KuzuDB":
         if cls._instance is None:
             cls._instance = super(KuzuDB, cls).__new__(cls)
-            cls._instance._init_db(settings or get_settings())
+            try:
+                cls._instance._init_db(settings or get_settings())
+            except Exception:
+                cls._instance = None
+                raise
         return cls._instance
 
     def _init_db(self, settings: Settings) -> None:

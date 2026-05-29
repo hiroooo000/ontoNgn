@@ -49,6 +49,7 @@ extraPaths = ["."]
 
 [tool.taskipy.tasks]
 check = "ruff check . && ruff format . && dmypy run -- ."
-cleanup = "rm tests/test_output.kuzu_db && echo cleaned up DB files"
-ci = "task cleanup && task check && pytest"
-start-devsv = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+cleanup = "rm -rf tests/test_output.kuzu_db tests/integration/manual_tests/integration.kuzu_db && echo cleaned up DB files"
+ci = "task cleanup && task check && APP_ENV=test pytest"
+setup-dev-db = "APP_ENV=dev PYTHONPATH=. python tests/integration/manual_tests/setup_dev_db.py"
+start-devsv = "task setup-dev-db && APP_ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

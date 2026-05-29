@@ -303,14 +303,12 @@ sequenceDiagram
 ## 7. 環境設定と設定値 (Environment Configuration)
 
 本システムは `app.core.config.Settings` (Pydantic Settings) を利用してアプリケーション全体の設定を管理しています。
-実行時に必要な設定値は、環境変数またはプロジェクト直下の `.env` ファイルから読み込まれます。
+実行時に必要な設定値は、環境変数 `APP_ENV`（デフォルトは `test`） に応じて、プロジェクト直下の `.env.{APP_ENV}` ファイルから読み込まれます。
 
-**セットアップに関する注意**: 
-開発を開始・実行する際は、リポジトリに含まれる `.env.example` を `.env` に変更（またはコピー）して使用してください。
+開発を開始・実行する際は、リポジトリに含まれる `.env.template` を `.env.dev` 等にコピーして使用してください。
 
-主な設定項目：
-- `GRAPH_DB_TYPE`: 使用するグラフデータベースの種類 (例: `kuzu`)
-- `KUZU_DB_PATH`: Kuzuデータベースの保存パス (例: `./data/kuzu`)
+### 主な設定項目 (Core Settings)
+- `KUZU_DB_PATH`: Kuzuデータベースの保存パス (例: `tests/integration/manual_tests/integration.kuzu_db`)
 - `LLM_API_BASE_URL`: LLM推論サーバーのエンドポイント (デフォルトでローカルのLMStudio等のAPIに接続可能)
 - `LLM_API_KEY`: API通信に使用する認証キー
 - `TEXT_MODEL_NAME`: オントロジー抽出や関連付けに使用するモデル名

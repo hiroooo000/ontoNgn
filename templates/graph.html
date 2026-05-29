@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ontoNgn - Graph Visualization</title>
+    <!-- Tailwind CSS (CDN for simple integration) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- vis-network -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a; /* slate-900 */
+            color: #f8fafc; /* slate-50 */
+        }
+        
+        #mynetwork {
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        /* Glassmorphism panel */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7); /* slate-800 with opacity */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Transition for collapsible panel */
+        #left-pane {
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        #left-pane.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* Toggle Button */
+        #toggle-btn {
+            position: absolute;
+            left: 320px; /* Panel width */
+            top: 20px;
+            z-index: 20;
+            transition: left 0.3s ease-in-out;
+        }
+        
+        #toggle-btn.collapsed {
+            left: 0;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+
+    <!-- Graph Canvas -->
+    <div id="mynetwork"></div>
+
+    <!-- Toggle Button -->
+    <button id="toggle-btn" class="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-r-md border border-l-0 border-slate-500 shadow-lg flex items-center justify-center">
+        <svg id="toggle-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+    </button>
+
+    <!-- Left Pane -->
+    <div id="left-pane" class="absolute top-0 left-0 w-[320px] h-full glass-panel z-10 flex flex-col shadow-2xl">
+        
+        <!-- Header / Search Area -->
+        <div class="p-5 border-b border-slate-600">
+            <h1 class="text-xl font-bold mb-4 text-blue-400 flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                Graph Insights
+            </h1>
+            
+            <form id="search-form" class="flex flex-col space-y-3">
+                <div>
+                    <label for="search-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Search Nodes</label>
+                    <div class="relative">
+                        <input type="text" id="search-input" class="w-full bg-slate-900/50 border border-slate-600 rounded-md py-2 pl-3 pr-10 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder-slate-500" placeholder="Keyword...">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <div class="flex-1">
+                        <label for="hops-input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Hops</label>
+                        <select id="hops-input" class="w-full bg-slate-900/50 border border-slate-600 rounded-md py-2 px-3 text-sm focus:outline-none focus:border-blue-500">
+                            <option value="1">1 Hop</option>
+                            <option value="2">2 Hops</option>
+                            <option value="3">3 Hops</option>
+                        </select>
+                    </div>
+                    <div class="flex-none pt-5">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm w-full">
+                            Search
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Properties Area -->
+        <div class="flex-1 p-5 overflow-y-auto">
+            <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Selected Node Properties</h2>
+            
+            <div id="properties-container" class="bg-slate-900/40 rounded-md border border-slate-700 p-4 min-h-[200px]">
+                <p id="empty-state" class="text-slate-500 text-sm italic text-center mt-10">Click on a node to view its properties.</p>
+                
+                <div id="property-content" class="hidden">
+                    <div class="mb-4 pb-3 border-b border-slate-700">
+                        <div class="text-xs text-slate-400 mb-1">LABEL</div>
+                        <div id="prop-label" class="text-lg font-bold text-blue-300"></div>
+                        <div class="text-xs text-slate-400 mt-2 mb-1">ID</div>
+                        <div id="prop-id" class="text-sm font-mono text-slate-300 break-all"></div>
+                    </div>
+                    
+                    <div class="text-xs text-slate-400 mb-2">PROPERTIES (JSON)</div>
+                    <pre id="prop-json" class="text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+            
+            <!-- Loading indicator -->
+            <div id="loading-indicator" class="hidden mt-4 text-center">
+                <svg class="animate-spin inline-block w-6 h-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm text-slate-400 ml-2">Loading graph...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const leftPane = document.getElementById('left-pane');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const toggleIcon = document.getElementById('toggle-icon');
+        const searchForm = document.getElementById('search-form');
+        const searchInput = document.getElementById('search-input');
+        const hopsInput = document.getElementById('hops-input');
+        
+        const propertiesContainer = document.getElementById('properties-container');
+        const emptyState = document.getElementById('empty-state');
+        const propertyContent = document.getElementById('property-content');
+        const propLabel = document.getElementById('prop-label');
+        const propId = document.getElementById('prop-id');
+        const propJson = document.getElementById('prop-json');
+        
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Graph Variables
+        let network = null;
+        let nodesDataset = new vis.DataSet([]);
+        let edgesDataset = new vis.DataSet([]);
+        let allGraphNodes = {};
+
+        // Panel Toggle Logic
+        toggleBtn.addEventListener('click', () => {
+            leftPane.classList.toggle('collapsed');
+            toggleBtn.classList.toggle('collapsed');
+            
+            if (leftPane.classList.contains('collapsed')) {
+                toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>';
+            } else {
+                toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>';
+            }
+        });
+
+        // Initialize Vis.js Network
+        function initNetwork() {
+            const container = document.getElementById('mynetwork');
+            const data = {
+                nodes: nodesDataset,
+                edges: edgesDataset
+            };
+            
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 20,
+                    font: {
+                        color: '#f8fafc',
+                        size: 14, // px
+                        face: 'sans-serif'
+                    },
+                    borderWidth: 2,
+                    color: {
+                        border: '#3b82f6',
+                        background: '#1e3a8a',
+                        highlight: {
+                            border: '#60a5fa',
+                            background: '#2563eb'
+                        }
+                    },
+                    shadow: true
+                },
+                edges: {
+                    width: 1.5,
+                    color: {
+                        color: '#475569',
+                        highlight: '#94a3b8'
+                    },
+                    font: {
+                        color: '#94a3b8',
+                        size: 11,
+                        align: 'middle'
+                    },
+                    arrows: {
+                        to: {enabled: true, scaleFactor: 0.5}
+                    },
+                    smooth: {
+                        type: 'continuous'
+                    }
+                },
+                physics: {
+                    forceAtlas2Based: {
+                        gravitationalConstant: -50,
+                        centralGravity: 0.01,
+                        springLength: 100,
+                        springConstant: 0.08
+                    },
+                    maxVelocity: 50,
+                    solver: 'forceAtlas2Based',
+                    timestep: 0.35,
+                    stabilization: {
+                        iterations: 150
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200,
+                    zoomView: true,
+                    dragView: true
+                }
+            };
+
+            network = new vis.Network(container, data, options);
+
+            // Handle Node Click
+            network.on("click", function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    showNodeProperties(nodeId);
+                } else {
+                    hideNodeProperties();
+                }
+            });
+        }
+
+        function showNodeProperties(nodeId) {
+            const nodeData = allGraphNodes[nodeId];
+            if (!nodeData) return;
+
+            emptyState.classList.add('hidden');
+            propertyContent.classList.remove('hidden');
+
+            propLabel.textContent = nodeData.label || 'Unknown';
+            propId.textContent = nodeData.id;
+            
+            // Format JSON properties
+            const props = nodeData.properties || {};
+            propJson.textContent = JSON.stringify(props, null, 2);
+        }
+
+        function hideNodeProperties() {
+            emptyState.classList.remove('hidden');
+            propertyContent.classList.add('hidden');
+        }
+
+        // Fetch Graph Data
+        async function fetchGraphData(keyword, hops) {
+            loadingIndicator.classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`/api/v1/graph/search?q=${encodeURIComponent(keyword)}&hops=${hops}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Process and format nodes for vis.js
+                const visNodes = [];
+                allGraphNodes = {}; // reset cache
+                
+                (data.nodes || []).forEach(node => {
+                    allGraphNodes[node.id] = node;
+                    
+                    // Generate a label for display (try to use 'name' or 'title' from properties)
+                    let displayLabel = node.label;
+                    if (node.properties) {
+                        if (node.properties.name) displayLabel = String(node.properties.name);
+                        else if (node.properties.title) displayLabel = String(node.properties.title);
+                        else if (node.properties.value) displayLabel = String(node.properties.value);
+                    }
+                    
+                    // Truncate long labels
+                    if (displayLabel && displayLabel.length > 20) {
+                        displayLabel = displayLabel.substring(0, 17) + '...';
+                    }
+
+                    // Assign different colors based on node label (basic logic)
+                    let bgColor = '#1e3a8a';
+                    let borderColor = '#3b82f6';
+                    
+                    if (node.label === 'Document') {
+                        bgColor = '#064e3b';
+                        borderColor = '#10b981';
+                    } else if (node.label === 'ap:UnclassifiedConcept') {
+                        bgColor = '#701a75';
+                        borderColor = '#d946ef';
+                    }
+
+                    visNodes.push({
+                        id: node.id,
+                        label: displayLabel,
+                        title: `${node.label}: ${node.id}`, // Tooltip
+                        color: {
+                            background: bgColor,
+                            border: borderColor
+                        }
+                    });
+                });
+                
+                // Process and format edges for vis.js
+                const visEdges = [];
+                (data.edges || []).forEach(edge => {
+                    visEdges.push({
+                        from: edge.source_id,
+                        to: edge.target_id,
+                        label: edge.relation_type,
+                        title: edge.relation_type // Tooltip
+                    });
+                });
+                
+                // Update Datasets
+                nodesDataset.clear();
+                edgesDataset.clear();
+                
+                nodesDataset.add(visNodes);
+                edgesDataset.add(visEdges);
+                
+                // Optional: Fit all nodes in view
+                if (network) {
+                    network.fit({
+                        animation: {
+                            duration: 1000,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error("Failed to fetch graph data:", error);
+                alert("データの取得に失敗しました。詳細: " + error.message);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // Form Submit Handler
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const keyword = searchInput.value.trim();
+            const hops = hopsInput.value;
+            
+            if (keyword) {
+                hideNodeProperties();
+                fetchGraphData(keyword, hops);
+            }
+        });
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initNetwork();
+            // Initial placeholder or specific initial search can be triggered here if desired
+        });
+    </script>
+</body>
+</html>

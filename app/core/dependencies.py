@@ -6,7 +6,9 @@ from app.core.config import Settings, get_settings
 from app.domain.models.graph import ExtractionResult, GraphEdge, GraphNode
 from app.domain.services.graph_repository import IGraphRepository
 from app.domain.services.text_llm_service import ITextLLMService
+from app.infrastructure.database.kuzu_db import KuzuDB
 from app.interfaces.gateways.lmstudio_gateway import LMStudioGateway
+from app.interfaces.repositories.kuzu_graph_repository import KuzuGraphRepository
 
 
 def get_text_llm_service(settings: Settings = Depends(get_settings)) -> ITextLLMService:
@@ -46,5 +48,5 @@ class DummyGraphRepository(IGraphRepository):
 
 
 def get_graph_repository(settings: Settings = Depends(get_settings)) -> IGraphRepository:
-    # 動作確認用のダミーリポジトリを返します（実DB連携までの暫定措置）
-    return DummyGraphRepository()
+    db = KuzuDB(settings=settings)
+    return KuzuGraphRepository(db=db)

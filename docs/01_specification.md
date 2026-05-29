@@ -44,7 +44,7 @@ Version: 2.0.0
 5. **型安全なバリデーション**:
    - LLMから返却されたJSONデータを Pydantic スキーマで検証し、ドメインモデルに変換する。
 6. **DB非依存のオントロジー管理 (IGraphRepository)**:
-   - 設定ファイル（`.env`）一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF）に保存・同期する。
+   - 設定ファイル（`.env.dev`等）一つで複数のグラフDB（Neo4j、Apache AGE/PostgreSQL、Kùzu、またはインメモリRDF）に保存・同期する。
 7. **GraphRAG 連携（エクスポート機能）**:
    - 外部グラフDBに直接ロードできる構造化JSONおよびTurtle形式（.ttl）ファイルでエクスポートする。
 8. **マルチランゲージ対応 (Multi-language Support)**:
@@ -107,11 +107,11 @@ Version: 2.0.0
    ```
    *(※ 内部で `pdf2image` を使用するため、システムに `poppler-utils` がインストールされている必要があります)*
 
-2. **環境変数の設定 (`.env`)**:
-   プロジェクトのルートディレクトリに `.env` ファイルを作成し、必要な設定を行います。
+2. **環境変数の設定 (`.env.dev`)**:
+   プロジェクトのルートディレクトリに `.env.dev` ファイルを作成し、必要な設定を行います。
    ```env
    GRAPH_DB_TYPE=kuzu
-   KUZU_DB_PATH=./data/kuzu
+   KUZU_DB_PATH=tests/integration/manual_tests/integration.kuzu_db
    LLM_API_BASE_URL=http://localhost:1234/v1
    VISION_MODEL_NAME=vision-model-name
    TEXT_MODEL_NAME=text-model-name
