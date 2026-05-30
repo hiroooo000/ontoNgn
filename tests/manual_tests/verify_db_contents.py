@@ -60,27 +60,27 @@ async def main() -> None:
 
     # ノードの取得
     print("\n--- 【DB内のノード (一部抜粋)】 ---")
-    res_nodes: Any = conn.execute("MATCH (n:Entity) RETURN n.id, n.label, n.properties_json LIMIT 5")  # type: ignore
+    res_nodes: Any = conn.execute("MATCH (n:Entity) RETURN n.id, n.label, n.properties_json LIMIT 5")
     node_count = 0
     while res_nodes.has_next():
         row = res_nodes.get_next()
         print(f"ID: {row[0]:<25} | Label: {row[1]:<20} | Props: {row[2]}")
         node_count += 1
 
-    res_total_nodes: Any = conn.execute("MATCH (n:Entity) RETURN COUNT(n)")  # type: ignore
+    res_total_nodes: Any = conn.execute("MATCH (n:Entity) RETURN COUNT(n)")
     total_nodes = res_total_nodes.get_next()[0]
     print(f"-> 取得したノード計: {total_nodes} 件")
 
     # エッジの取得
     print("\n--- 【DB内のエッジ (一部抜粋)】 ---")
-    res_edges: Any = conn.execute("MATCH (src)-[r:Relation]->(dst) RETURN src.id, r.relation_type, dst.id LIMIT 5")  # type: ignore
+    res_edges: Any = conn.execute("MATCH (src)-[r:Relation]->(dst) RETURN src.id, r.relation_type, dst.id LIMIT 5")
     edge_count = 0
     while res_edges.has_next():
         row = res_edges.get_next()
         print(f"Source: {row[0]:<15} -[{row[1]}]-> Target: {row[2]}")
         edge_count += 1
 
-    res_total_edges: Any = conn.execute("MATCH ()-[r:Relation]->() RETURN COUNT(r)")  # type: ignore
+    res_total_edges: Any = conn.execute("MATCH ()-[r:Relation]->() RETURN COUNT(r)")
     total_edges = res_total_edges.get_next()[0]
     print(f"-> 取得したエッジ計: {total_edges} 件")
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import GraphViewer from './components/GraphViewer.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <GraphViewer />
 </template>
