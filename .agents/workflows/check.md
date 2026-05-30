@@ -4,7 +4,7 @@ description: 作業が完了しているかのチェック
 
 以下をチェックすること
 
-- uv run task ci がエラーなく完走していること
+- uv run task ci を通し、PythonコードもTypeScriptのコードもエラーなく完走していること
 - Problemsが0件であること
 - 実施した作業と、docs配下のドキュメントが整合が取れていること
 - 不要なファイルが残存していないこと

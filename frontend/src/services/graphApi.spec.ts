@@ -18,7 +18,7 @@ describe('graphApi', () => {
     } as Response);
 
     const result = await fetchGraphData('keyword', 2);
-    
+
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/v1/graph/search?q=keyword&hops=2');
     expect(result).toEqual(mockData);
   });

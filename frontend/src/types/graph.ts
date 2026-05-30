@@ -1,5 +1,5 @@
 export interface GraphNodeProperty {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface GraphNode {
