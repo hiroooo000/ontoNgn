@@ -32,3 +32,6 @@ data/
 
 # KuzuDB Test Output
 *.kuzu_db
+
+# pnpm
+.pnpm-store

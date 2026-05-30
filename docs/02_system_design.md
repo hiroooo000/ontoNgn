@@ -12,7 +12,7 @@ Version: 2.0.0
 ```
 +-----------------------------------------------------------------------+
 |                         Frameworks & Drivers                          |
-|  - Web UI (HTMX + Jinja2)  - Pydantic Settings                        |
+|  - Web UI (SPA: Vue 3 + Vite)  - Pydantic Settings                    |
 |  - CLI Commands          - pdf2image / LibreOffice Headless           |
 |  - PostgreSQL Client     - Neo4j Driver / Kuzu DB Python API          |
 +-----------------------------------------------------------------------+
@@ -83,10 +83,10 @@ app/
 └── infrastructure/             # 4. インフラストラクチャ層
     └── db/
         └── session.py          # DBセッション管理
-templates/                      # HTMX用 Jinja2 テンプレート
-├── index.html
-├── graph.html                  # グラフ可視化UI (vis-network)
-└── partials/
+frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
+├── package.json                # Node.js 依存関係
+├── src/                        # UIソースコード
+└── dist/                       # ビルド済み静的ファイル (FastAPIがマウントして配信)
 ```
 
 ---
@@ -103,14 +103,14 @@ templates/                      # HTMX用 Jinja2 テンプレート
 | 06 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
 | 07 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
 | 08 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
-| 09 | **Console UI (Minimal UI)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うロジッドレスUI。 |
-| 10 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（vis-network等を利用）。 |
+| 09 | **Console UI (SPA)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うフロントエンドSPA。 |
+| 10 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（Vue 3 + vis-network等を利用）。 |
 
 ---
 
 ## 3. API仕様一覧 (API Specifications)
 
-本システムはHTMXを利用したフロントエンドコンソールや外部システムからの連携のために、以下のRESTful APIを提供します。
+本システムは、分離されたフロントエンド（SPA）や外部システムからの連携のために、以下のRESTful APIを提供します。
 
 ### 3.1 Document API (ドキュメント管理)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |

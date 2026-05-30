@@ -1,14 +1,14 @@
+import os
 import traceback
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.interfaces.api.graph import router as graph_router
 from app.interfaces.api.ontology import router as ontology_router
 
 app = FastAPI(title="ontoNgn API")
-templates = Jinja2Templates(directory="templates")
 
 
 @app.exception_handler(Exception)
@@ -24,9 +24,13 @@ def read_root() -> dict[str, str]:
 
 
 @app.get("/graph", response_class=HTMLResponse)
-def get_graph_ui(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request=request, name="graph.html")
+def get_graph_ui() -> FileResponse:
+    return FileResponse("frontend/dist/graph.html")
 
 
 app.include_router(ontology_router, prefix="/api/v1/ontology", tags=["ontology"])
 app.include_router(graph_router, prefix="/api/v1/graph", tags=["graph"])
+
+
+if os.path.exists("frontend/dist"):
+    app.mount("/", StaticFiles(directory="frontend/dist"), name="static")

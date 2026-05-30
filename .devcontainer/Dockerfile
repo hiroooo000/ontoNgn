@@ -7,6 +7,11 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     poppler-utils \
     git \
     vim \
+    curl
+
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && corepack enable pnpm \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager and Playwright system dependencies
