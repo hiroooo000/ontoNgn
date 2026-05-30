@@ -27,3 +27,8 @@ description: Design and planning rules for the ontoNgn project, covering archite
 
 - **Single Responsibility Principle (SRP)**: Each class or module should have one, and only one, reason to change.
 - **Type Safety**: Strictly use Pydantic for data validation and type checking, ensuring safe parsing of LLM outputs and API requests.
+
+## 3. Documentation Rules
+
+- **Design Document Verification**: 設計を検討する際には、必ず `docs/` 直下に格納されている設計ドキュメントを確認すること。
+- **Detailed Design Storage**: 詳細設計に関するドキュメント（関連するものすべて）は、必ず `docs/detail_design/` 以下に格納すること。
