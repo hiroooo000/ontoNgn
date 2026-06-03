@@ -19,7 +19,7 @@ async def search_graph(
     anchors = await repo.search_nodes_by_keywords(keywords=[q], top_k=limit)
 
     if not anchors:
-        return {"nodes": [], "edges": []}
+        return {"nodes": [], "edges": [], "hits": []}
 
     anchor_ids = [node.id for node in anchors]
 
@@ -31,6 +31,28 @@ async def search_graph(
     # 定義としては ExtractionResult を返すようになっている。
 
     # Pydanticモデルの場合はmodel_dump()、辞書の場合はそのまま返す
+    if hasattr(extraction_result, "nodes"):
+        nodes = [n.model_dump() if hasattr(n, "model_dump") else n for n in extraction_result.nodes]
+        edges = [e.model_dump() if hasattr(e, "model_dump") else e for e in extraction_result.edges]
+        hits = [n.model_dump() if hasattr(n, "model_dump") else n for n in anchors]
+        return {"nodes": nodes, "edges": edges, "hits": hits}
+
+    if isinstance(extraction_result, dict):
+        extraction_result["hits"] = [n.model_dump() if hasattr(n, "model_dump") else n for n in anchors]
+        return extraction_result
+
+    return {"nodes": [], "edges": [], "hits": []}
+
+
+@router.get("/expand")
+async def expand_graph(
+    node_id: str = Query(..., description="起点となるノードID"),
+    hops: int = Query(1, description="展開するホップ数"),
+    repo: IGraphRepository = Depends(get_graph_repository),
+) -> dict[str, list[Any]]:
+    # 指定されたノードを起点とするサブグラフを取得
+    extraction_result = await repo.get_subgraph(anchor_ids=[node_id], max_hops=hops)
+
     if hasattr(extraction_result, "nodes"):
         nodes = [n.model_dump() if hasattr(n, "model_dump") else n for n in extraction_result.nodes]
         edges = [e.model_dump() if hasattr(e, "model_dump") else e for e in extraction_result.edges]

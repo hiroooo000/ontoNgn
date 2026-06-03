@@ -38,6 +38,7 @@ export function formatNodes(nodes: GraphNode[]): VisNode[] {
 
 export function formatEdges(edges: GraphEdge[]): VisEdge[] {
   return edges.map((edge) => ({
+    id: `${edge.source_id}_${edge.target_id}_${edge.relation_type}`,
     from: edge.source_id,
     to: edge.target_id,
     label: edge.relation_type,

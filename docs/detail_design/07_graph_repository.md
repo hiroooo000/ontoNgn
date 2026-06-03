@@ -41,8 +41,23 @@ class IGraphRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_schema_definition(self) -> dict:
+    async def get_schema_definition(self) -> dict[str, Any]:
         """現在データベースに適用されているスキーマ定義メタデータを取得します。"""
+        pass
+
+    @abstractmethod
+    async def delete_document_graph(self, document_id: str) -> None:
+        """特定のドキュメントIDに紐づくグラフデータ（ノード・エッジ）を削除します。"""
+        pass
+
+    @abstractmethod
+    async def search_nodes_by_keywords(self, keywords: List[str], top_k: int) -> List[GraphNode]:
+        """キーワードに基づく類似ノード検索（全文検索・ベクトル検索）を行います。"""
+        pass
+
+    @abstractmethod
+    async def get_subgraph(self, anchor_ids: List[str], max_hops: int) -> ExtractionResult:
+        """指定したアンカーノードからNホップ以内のサブグラフを取得します。"""
         pass
 ```
 

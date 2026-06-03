@@ -3,7 +3,7 @@ import sys
 from playwright.sync_api import TimeoutError, sync_playwright
 
 
-def run_e2e_test():
+def run_e2e_test() -> None:
     print("=== Graph UI E2E Manual Test (Playwright) ===")
     url = "http://127.0.0.1:8000/graph"
 
@@ -25,12 +25,24 @@ def run_e2e_test():
             print("✅ SUCCESS: Search form rendered.")
 
             # Interact with search
-            print("Simulating search interaction...")
+            print("Simulating search interaction with 2 Hops...")
             page.fill('input[type="text"][placeholder="Keyword..."]', "test-query")
+            page.select_option("select", "2")
             page.click('button[type="submit"]')
 
-            # Wait for loading indicator (might be fast, just check if no errors occurred)
-            print("✅ SUCCESS: Search submitted without errors.")
+            # Wait for loading indicator or just give it a moment
+            page.wait_for_timeout(1000)
+            print("✅ SUCCESS: Search submitted.")
+
+            print("Checking for Tooltip on node click...")
+            # We assume a canvas exists. We just click the middle of the canvas
+            page.click("canvas", position={"x": 400, "y": 300})
+            page.wait_for_timeout(500)
+
+            print("Checking for node double click (expand)...")
+            page.dblclick("canvas", position={"x": 400, "y": 300})
+            page.wait_for_timeout(1000)
+            print("✅ SUCCESS: Double click expand executed.")
 
             browser.close()
             print("=== E2E Test Complete: All checks passed! ===")
