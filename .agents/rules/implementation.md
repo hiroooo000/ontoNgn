@@ -1,6 +1,5 @@
 ---
-trigger: always_on
-glob: '**/*'
+trigger: model_decision
 description: Implementation rules for the ontoNgn project, emphasizing explicit user feedback and incremental development.
 ---
 

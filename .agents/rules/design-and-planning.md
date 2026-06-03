@@ -1,5 +1,5 @@
 ---
-trigger: always_on
+trigger: model_decision
 description: Design and planning rules for the ontoNgn project, covering architecture, communication, and coding standards.
 ---
 
@@ -32,3 +32,5 @@ description: Design and planning rules for the ontoNgn project, covering archite
 
 - **Design Document Verification**: 設計を検討する際には、必ず `docs/` 直下に格納されている設計ドキュメントを確認すること。
 - **Detailed Design Storage**: 詳細設計に関するドキュメント（関連するものすべて）は、必ず `docs/detail_design/` 以下に格納すること。
+- 設計の際は、必ずdocs直下のすべてのファイルを確認すること
+- 設計内容に関連するdocs/detail_designは以下のファイルを確認すること
