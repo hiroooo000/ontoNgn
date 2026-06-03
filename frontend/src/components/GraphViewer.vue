@@ -1,20 +1,30 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useGraphNetwork } from '../composables/useGraphNetwork';
-import { fetchGraphData } from '../services/graphApi';
+import { fetchGraphData, expandGraphData } from '../services/graphApi';
 import { formatNodes, formatEdges } from '../utils/graphFormatter';
+import type { GraphNode, GraphEdge } from '../types/graph';
 
-const { initNetwork, updateGraphData, selectedNode } = useGraphNetwork();
+const { initNetwork, updateGraphData, selectedNode, doubleClickedNode, tooltipData } = useGraphNetwork();
 
 const networkContainer = ref<HTMLElement | null>(null);
 const searchKeyword = ref('');
 const searchHops = ref('1');
 const isLoading = ref(false);
 const isPanelCollapsed = ref(false);
+const searchHits = ref<GraphNode[]>([]);
 
 const togglePanel = () => {
   isPanelCollapsed.value = !isPanelCollapsed.value;
 };
+
+// Double-click watcher
+import { watch } from 'vue';
+watch(doubleClickedNode, async (newNode) => {
+  if (newNode) {
+    await handleExpand(newNode.id);
+  }
+});
 
 const handleSearch = async () => {
   if (!searchKeyword.value.trim()) return;
@@ -22,9 +32,10 @@ const handleSearch = async () => {
   isLoading.value = true;
   try {
     const data = await fetchGraphData(searchKeyword.value.trim(), parseInt(searchHops.value));
+    searchHits.value = data.hits || [];
     const visNodes = formatNodes(data.nodes || []);
     const visEdges = formatEdges(data.edges || []);
-    updateGraphData(data.nodes || [], visNodes, visEdges);
+    updateGraphData(data.nodes || [], visNodes, visEdges, data.edges || []);
   } catch (error: unknown) {
     console.error('Failed to fetch graph data:', error);
     const msg = error instanceof Error ? error.message : String(error);
@@ -32,6 +43,28 @@ const handleSearch = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const handleExpand = async (nodeId: string) => {
+  isLoading.value = true;
+  try {
+    const data = await expandGraphData(nodeId, parseInt(searchHops.value));
+    const visNodes = formatNodes(data.nodes || []);
+    const visEdges = formatEdges(data.edges || []);
+    updateGraphData(data.nodes || [], visNodes, visEdges, data.edges || []);
+  } catch (error: unknown) {
+    console.error('Failed to expand graph:', error);
+    alert('グラフの展開に失敗しました。');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const getTooltipTitle = (tooltip: { type: 'node' | 'edge'; data: GraphNode | GraphEdge }) => {
+  if (tooltip.type === 'node') {
+    return (tooltip.data as GraphNode).label;
+  }
+  return (tooltip.data as GraphEdge).relation_type;
 };
 
 onMounted(() => {
@@ -136,9 +169,7 @@ onMounted(() => {
                 v-model="searchHops"
                 class="w-full bg-slate-900/50 border border-slate-600 rounded-md py-2 px-3 text-sm focus:outline-none focus:border-blue-500"
               >
-                <option value="1">1 Hop</option>
-                <option value="2">2 Hops</option>
-                <option value="3">3 Hops</option>
+                <option v-for="i in 10" :key="i" :value="i">{{ i }} Hop{{ i > 1 ? 's' : '' }}</option>
               </select>
             </div>
             <div class="flex-none pt-5">
@@ -153,31 +184,47 @@ onMounted(() => {
         </form>
       </div>
 
-      <!-- Properties Area -->
-      <div class="flex-1 p-5 overflow-y-auto">
-        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Selected Node Properties
-        </h2>
+      <!-- Properties & Hits Area -->
+      <div class="flex-1 p-5 overflow-y-auto flex flex-col space-y-5">
+        
+        <!-- Search Hits -->
+        <div v-if="searchHits.length > 0">
+          <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Search Hits
+          </h2>
+          <div class="bg-slate-900/40 rounded-md border border-slate-700 max-h-[200px] overflow-y-auto">
+            <ul class="divide-y divide-slate-700/50">
+              <li 
+                v-for="hit in searchHits" 
+                :key="hit.id"
+                @click="handleExpand(hit.id)"
+                class="hit-item p-3 hover:bg-blue-900/30 cursor-pointer transition-colors"
+              >
+                <div class="text-sm font-medium text-blue-300 truncate">{{ hit.label }}</div>
+                <div class="text-xs text-slate-500 truncate">{{ hit.id }}</div>
+              </li>
+            </ul>
+          </div>
+        </div>
 
-        <div class="bg-slate-900/40 rounded-md border border-slate-700 p-4 min-h-[200px]">
-          <p v-if="!selectedNode" class="text-slate-500 text-sm italic text-center mt-10">
-            Click on a node to view its properties.
-          </p>
-
-          <div v-else>
-            <div class="mb-4 pb-3 border-b border-slate-700">
-              <div class="text-xs text-slate-400 mb-1">LABEL</div>
-              <div class="text-lg font-bold text-blue-300">
-                {{ selectedNode.label || 'Unknown' }}
+        <div>
+          <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Selected Node
+          </h2>
+          <div class="bg-slate-900/40 rounded-md border border-slate-700 p-4 min-h-[100px]">
+            <p v-if="!selectedNode" class="text-slate-500 text-xs italic text-center mt-5">
+              Click on a node or edge to view details.
+            </p>
+            <div v-else>
+              <div class="mb-2 pb-2 border-b border-slate-700">
+                <div class="text-xs text-slate-400 mb-1">LABEL</div>
+                <div class="text-base font-bold text-blue-300">
+                  {{ selectedNode.label || 'Unknown' }}
+                </div>
               </div>
-              <div class="text-xs text-slate-400 mt-2 mb-1">ID</div>
-              <div class="text-sm font-mono text-slate-300 break-all">{{ selectedNode.id }}</div>
+              <div class="text-xs text-slate-400 mb-1">ID</div>
+              <div class="text-xs font-mono text-slate-300 break-all">{{ selectedNode.id }}</div>
             </div>
-
-            <div class="text-xs text-slate-400 mb-2">PROPERTIES (JSON)</div>
-            <pre class="text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap">{{
-              JSON.stringify(selectedNode.properties || {}, null, 2)
-            }}</pre>
           </div>
         </div>
 
@@ -206,6 +253,26 @@ onMounted(() => {
           <span class="text-sm text-slate-400 ml-2">Loading graph...</span>
         </div>
       </div>
+    </div>
+
+    <!-- Tooltip Popup -->
+    <div 
+      v-if="tooltipData && tooltipData.visible"
+      class="graph-tooltip absolute z-30 bg-slate-800/90 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl p-4 w-[300px] pointer-events-none transition-opacity duration-200"
+      :style="{ left: `${tooltipData.x + 15}px`, top: `${tooltipData.y + 15}px` }"
+    >
+      <div class="mb-2 pb-2 border-b border-slate-600">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">{{ tooltipData.type }}</span>
+        </div>
+        <div class="text-sm font-bold text-blue-300 mt-1 break-words">
+          {{ getTooltipTitle(tooltipData) }}
+        </div>
+      </div>
+      <div class="text-xs text-slate-400 mb-1">PROPERTIES</div>
+      <pre class="text-xs font-mono text-emerald-400 overflow-x-auto max-h-[200px] whitespace-pre-wrap bg-slate-900/50 p-2 rounded">{{
+        JSON.stringify(tooltipData.data.properties || {}, null, 2)
+      }}</pre>
     </div>
   </div>
 </template>

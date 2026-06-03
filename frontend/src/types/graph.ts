@@ -18,6 +18,7 @@ export interface GraphEdge {
 export interface GraphSearchResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  hits?: GraphNode[];
 }
 
 export interface VisNode {

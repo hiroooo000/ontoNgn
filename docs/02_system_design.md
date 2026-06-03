@@ -144,7 +144,8 @@ frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
 ### 3.5 Graph API (グラフ可視化・探索)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
 | :--- | :--- | :--- | :--- | :--- |
-| GET | `/api/v1/graph/search` | キーワードに基づくアンカーノード検索とサブグラフ取得 | `?q=keyword&hops=1` | `{ "nodes": [...], "edges": [...] }` |
+| GET | `/api/v1/graph/search` | キーワードに基づくアンカーノード検索とサブグラフ取得 | `?q=keyword&hops=1` | `{ "nodes": [...], "edges": [...], "hits": [...] }` |
+| GET | `/api/v1/graph/expand` | 指定ノードを中心とする特定ホップ数のサブグラフ再取得 | `?node_id=uuid&hops=2` | `{ "nodes": [...], "edges": [...] }` |
 
 ※ 内部的な処理の連鎖（`RenderDocumentUseCase`, `ExtractTextUseCase`, `GenerateOntologyUseCase` の呼び出し等）は、ワークフロー制御エンジンにより非同期タスクとして実行・管理されます。
 

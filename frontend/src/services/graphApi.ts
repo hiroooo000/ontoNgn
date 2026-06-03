@@ -10,3 +10,14 @@ export async function fetchGraphData(keyword: string, hops: number): Promise<Gra
 
   return (await response.json()) as GraphSearchResponse;
 }
+
+export async function expandGraphData(nodeId: string, hops: number): Promise<GraphSearchResponse> {
+  const url = `/api/v1/graph/expand?node_id=${encodeURIComponent(nodeId)}&hops=${hops}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return (await response.json()) as GraphSearchResponse;
+}

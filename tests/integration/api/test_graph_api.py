@@ -68,15 +68,32 @@ def test_graph_search_api_with_results(override_graph_repo: IGraphRepository) ->
     data = response.json()
     assert "nodes" in data
     assert "edges" in data
+    assert "hits" in data
     assert len(data["nodes"]) == 2
     assert len(data["edges"]) == 1
+    assert len(data["hits"]) == 1
     assert data["nodes"][0]["id"] == "node_1"
     assert data["edges"][0]["relation_type"] == "related_to"
+    assert data["hits"][0]["id"] == "node_1"
 
 
 def test_graph_search_api_no_results(override_graph_repo: IGraphRepository) -> None:
     response = client.get("/api/v1/graph/search?q=unknown&hops=1")
     assert response.status_code == 200
     data = response.json()
+    assert "hits" in data
     assert len(data["nodes"]) == 0
     assert len(data["edges"]) == 0
+    assert len(data["hits"]) == 0
+
+
+def test_graph_expand_api(override_graph_repo: IGraphRepository) -> None:
+    response = client.get("/api/v1/graph/expand?node_id=node_1&hops=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert "nodes" in data
+    assert "edges" in data
+    assert "hits" not in data
+    assert len(data["nodes"]) == 2
+    assert len(data["edges"]) == 1
+    assert data["nodes"][0]["id"] == "node_1"

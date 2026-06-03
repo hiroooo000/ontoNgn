@@ -1,14 +1,17 @@
 import { ref, shallowRef } from 'vue';
 import { Network } from 'vis-network';
 import { DataSet } from 'vis-data';
-import type { VisNode, VisEdge, GraphNode } from '../types/graph';
+import type { VisNode, VisEdge, GraphNode, GraphEdge } from '../types/graph';
 
 export function useGraphNetwork() {
   const networkRef = shallowRef<Network | null>(null);
   const nodesDataset = new DataSet<VisNode>([]);
   const edgesDataset = new DataSet<VisEdge>([]);
   const allGraphNodes = ref<Record<string, GraphNode>>({});
+  const allGraphEdges = ref<Record<string, GraphEdge>>({});
   const selectedNode = ref<GraphNode | null>(null);
+  const doubleClickedNode = ref<GraphNode | null>(null);
+  const tooltipData = ref<{ visible: boolean; x: number; y: number; data: GraphNode | GraphEdge; type: 'node' | 'edge' } | null>(null);
 
   const initNetwork = (container: HTMLElement) => {
     const data = { nodes: nodesDataset, edges: edgesDataset };
@@ -60,10 +63,44 @@ export function useGraphNetwork() {
     networkRef.value.on('click', (params) => {
       if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
-        selectedNode.value = allGraphNodes.value[nodeId] || null;
+        const node = allGraphNodes.value[nodeId] || null;
+        selectedNode.value = node;
+        tooltipData.value = {
+          visible: true,
+          x: params.event.srcEvent.clientX,
+          y: params.event.srcEvent.clientY,
+          data: node,
+          type: 'node'
+        };
+      } else if (params.edges.length > 0) {
+        const edgeId = params.edges[0];
+        const edge = allGraphEdges.value[edgeId] || null;
+        selectedNode.value = null;
+        if (edge) {
+          tooltipData.value = {
+            visible: true,
+            x: params.event.srcEvent.clientX,
+            y: params.event.srcEvent.clientY,
+            data: edge,
+            type: 'edge'
+          };
+        } else {
+          tooltipData.value = null;
+        }
       } else {
         selectedNode.value = null;
+        tooltipData.value = null;
       }
+    });
+
+    networkRef.value.on('doubleClick', (params) => {
+       if (params.nodes.length > 0) {
+         const nodeId = params.nodes[0];
+         const node = allGraphNodes.value[nodeId];
+         if (node) {
+            doubleClickedNode.value = { ...node };
+         }
+       }
     });
 
     networkRef.value.on('stabilized', () => {
@@ -76,10 +113,17 @@ export function useGraphNetwork() {
     });
   };
 
-  const updateGraphData = (nodes: GraphNode[], visNodes: VisNode[], visEdges: VisEdge[]) => {
+  const updateGraphData = (nodes: GraphNode[], visNodes: VisNode[], visEdges: VisEdge[], edges: GraphEdge[]) => {
     const nodeDict: Record<string, GraphNode> = {};
     nodes.forEach((n) => (nodeDict[n.id] = n));
     allGraphNodes.value = nodeDict;
+
+    const edgeDict: Record<string, GraphEdge> = {};
+    edges.forEach((e) => {
+       const id = `${e.source_id}_${e.target_id}_${e.relation_type}`;
+       edgeDict[id] = e;
+    });
+    allGraphEdges.value = edgeDict;
 
     if (networkRef.value) networkRef.value.setOptions({ physics: { enabled: false } });
 
@@ -100,6 +144,8 @@ export function useGraphNetwork() {
   return {
     initNetwork,
     updateGraphData,
-    selectedNode
+    selectedNode,
+    doubleClickedNode,
+    tooltipData
   };
 }
