@@ -18,7 +18,9 @@ description: Mandatory behavioral guidelines to reduce common LLM coding mistake
 
 ## 3. Surgical Changes
 - 必要な箇所のみを修正し、無関係な箇所の修正や「改善」は行わない。
-- 既存 of コードスタイルに合わせる。
+- 既存のコードスタイルに合わせる。
+- コミットは、ユーザが確認したのち、ユーザからの指示に基づき実施する。勝手にコミットしない。
+
 
 ## 4. Goal-Driven Execution
 - 開発時は目標を検証可能な状態（テスト等）にし、検証を繰り返してループする。
