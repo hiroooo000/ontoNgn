@@ -72,17 +72,18 @@ app/
 │   │   ├── vision.py           # Vision抽出API
 │   │   ├── ontology.py         # オントロジー生成・管理API
 │   │   └── graph.py            # グラフ可視化・検索API
-│   ├── gateways/               # 外部連携の具象クラス
-│   │   ├── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
-│   │   ├── kuzu_repository.py  # KuzuDBリポジトリ
-│   │   ├── age_repository.py   # Apache AGEリポジトリ
-│   │   ├── neo4j_repository.py # Neo4jリポジトリ
-│   │   └── rdf_repository.py   # rdflib (トリプル) リポジトリ
+│   ├── gateways/               # 外部システム（LLM等）の具象アダプター
+│   │   └── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
+│   ├── repositories/           # DBリポジトリの具象アダプター
+│   │   ├── kuzu_graph_repository.py # Kuzu DB用アダプター
+│   │   ├── age_graph_repository.py  # Apache AGE用アダプター
+│   │   ├── neo4j_graph_repository.py# Neo4j用アダプター
+│   │   └── in_memory_rdf_repository.py # rdflib用アダプター
 │   └── renderers/              # ドキュメントレンダラー
 │       └── document_renderer.py
 └── infrastructure/             # 4. インフラストラクチャ層
-    └── db/
-        └── session.py          # DBセッション管理
+    └── database/               # DBドライバ・接続セッション管理
+        └── kuzu_db.py          # Kuzu DBの低レベル接続・クエリ実行
 frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
 ├── package.json                # Node.js 依存関係
 ├── src/                        # UIソースコード
