@@ -102,9 +102,10 @@ frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
 | 05 | **Ontology Linking Engine** | 新規抽出されたオントロジーについて、アンカー探索と既存サブグラフの取得を行い、LLM推論により既存知識グラフとの関連付け（リンク生成・マージ）を行います。 |
 | 06 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
 | 07 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
-| 08 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
-| 09 | **Console UI (SPA)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うフロントエンドSPA。 |
-| 10 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（Vue 3 + vis-network等を利用）。 |
+| 08 | **Schema Evolution API** | 未承認（Pending）状態のオントロジー進化提案をユーザーが確認し、承認（クラス昇格/既存マッピング）または却下（データ破棄）するアクションを受け付け、Graph RepositoryやSchema Compilerへ連携するAPI。 |
+| 09 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
+| 10 | **Console UI (SPA)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うフロントエンドSPA。 |
+| 11 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（Vue 3 + vis-network等を利用）。 |
 
 ---
 

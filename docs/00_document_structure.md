@@ -15,6 +15,8 @@
   - データモデル設計書。RDBのスキーマ、オントロジー（知識グラフ）のクラス設計・関係性、ファイルの管理ルールなどを定義します。
 - **`04_technology_decisions_report.md`**
   - 技術選定・比較検討報告書。データベースやフロントエンド（HTMX等）の技術スタックに関する採用理由や検討経緯を記録しています。
+- **`development_status.md`**
+  - 現在の開発状況・実装済み機能と未実装機能の管理を行うステータス管理ドキュメントです。
 
 ## 詳細設計ドキュメント (`docs/detail_design/` フォルダ)
 
@@ -28,11 +30,17 @@
   - 画像からの構造化テキスト抽出（Vision Extraction API）のインターフェースとGateway実装。
 - **`04_ontology_generation.md`**
   - LLMを用いたオントロジー生成（Ontology Generation API）のインターフェース、Pydanticスキーマ定義、およびGateway実装。
-- **`05_ontology_evolution.md`**
+- **`05_ontology_linking.md`**
+  - 新規抽出されたオントロジーと既存グラフとの関連付け・リンク生成を行うエンジンの設計。
+- **`06_ontology_evolution.md`**
   - 未分類概念の判定と提案を行うAI Agent（Ontology Evolution Agent）の設計。
-- **`06_schema_compiler.md`**
+- **`07_schema_compiler.md`**
   - スキーマ進化提案をPydantic/OWLファイルに反映するSchema Compilerの実装設計。
-- **`07_graph_repository.md`**
+- **`08_schema_evolution_api.md`**
+  - スキーマ進化提案に対するユーザーの承認・却下等のアクションを受け付けるAPI。
+- **`09_graph_repository.md`**
   - データベース非依存を担保するためのGraph Repositoryインターフェース（DI）設計。
-- **`08_console_ui.md`**
-  - HTMX + Jinja2 を用いたロジッドレスフロントエンド (Console UI) の設計方針と各種ステータス監視の仕組み。
+- **`10_console_ui.md`**
+  - 処理状態ダッシュボードやスキーマ進化のフィードバック収集を担うフロントエンドSPAの設計。
+- **`11_graph_visualization.md`**
+  - 蓄積されたノードとエッジを動的に探索・可視化するネットワークグラフUIの設計。
