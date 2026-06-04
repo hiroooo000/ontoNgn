@@ -120,9 +120,15 @@ flowchart TD
 | GET | `/api/v1/export/graphrag` | LlamaIndex等向けJSON形式のエクスポート | `?format=json` | `{ "nodes": [...], "edges": [...] }` |
 | GET | `/api/v1/export/turtle` | 標準的なRDF/Turtle形式でのエクスポート | - | (Turtle format text file) |
 
-### 3.5 Graph API (グラフ可視化・探索)
+### 3.5 Graph API (グラフCRUD・可視化・探索)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
 | :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/graph/ingest` | 抽出済みのオントロジーJSONを一括でGraphDBへUpsert登録 | `{ "nodes": [...], "edges": [...] }` | `{ "status": "success", "nodes_upserted": 10 }` |
+| POST | `/api/v1/graph/nodes` | 単一ノードの作成/更新 (Upsert) | `{ "id": "...", "type": "...", "label": "..." }` | `{ "status": "success" }` |
+| GET | `/api/v1/graph/nodes/{node_id}` | ノード詳細の取得 | - | `{ "id": "...", "label": "..." }` |
+| DELETE | `/api/v1/graph/nodes/{node_id}` | ノードの削除 | - | `{ "status": "deleted" }` |
+| POST | `/api/v1/graph/edges` | 単一エッジの作成/更新 (Upsert) | `{ "source_id": "...", "target_id": "..." }` | `{ "status": "success" }` |
+| DELETE | `/api/v1/graph/edges` | エッジの削除 | `?source_id=...&target_id=...` | `{ "status": "deleted" }` |
 | GET | `/api/v1/graph/search` | キーワードに基づくアンカーノード検索とサブグラフ取得 | `?q=keyword&hops=1` | `{ "nodes": [...], "edges": [...], "hits": [...] }` |
 | GET | `/api/v1/graph/expand` | 指定ノードを中心とする特定ホップ数のサブグラフ再取得 | `?node_id=uuid&hops=2` | `{ "nodes": [...], "edges": [...] }` |
 
@@ -246,6 +252,7 @@ sequenceDiagram
     participant Render as "Render API"
     participant Vision as "Vision API"
     participant Ont as "Ontology API"
+    participant Graph as "Graph API"
     participant DB as "Graph DB"
 
     Admin ->> UI: ドキュメントをアップロード
@@ -260,22 +267,14 @@ sequenceDiagram
     WF ->> Ont: 3. オントロジー生成要求 (テキスト送信)
     Note over Ont: テキストLLM<br/>(抽出Model)
     Ont ->> Ont: 3.1 独自オントロジーの抽出
-    Ont ->> DB: 3.2 既存サブグラフ検索 (アンカー探索)
-    DB -->> Ont: 既存コンテキスト (周辺ノード・エッジ)
-    Ont ->> Ont: 3.3 既存グラフとのリンク生成・マージ推論
-    Ont ->> Ont: 未分類概念の有無を判定
+    Ont -->> WF: 抽出オントロジー情報 (JSON)
     
-    alt 未分類概念なし
-        Ont ->> DB: 本保存処理
-        DB -->> Ont: 完了
-        Ont -->> WF: 抽出オントロジー情報 (JSON)
-        WF -->> UI: 処理完了レスポンス
-    else 未分類概念あり
-        Ont ->> DB: 抽出データを一時保存 (Pending)
-        DB -->> Ont: 完了
-        Ont -->> WF: 抽出オントロジー情報 (Pending状態付与済 JSON)
-        WF -->> UI: 処理保留レスポンス (要承認)
-    end
+    WF ->> Graph: 4. グラフ一括登録要求 (JSON送信)
+    Graph ->> DB: 4.1 ノードとエッジの保存 (Upsert)
+    DB -->> Graph: 完了
+    Graph -->> WF: 登録完了ステータス
+    WF -->> UI: 処理完了レスポンス
+
 ```
 
 ---

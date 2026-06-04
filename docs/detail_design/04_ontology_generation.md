@@ -126,35 +126,23 @@ class LMStudioGateway(ITextLLMService):
 クリーンアーキテクチャの原則に従い、ドメインインターフェースに依存したユースケースを定義します。
 
 ```python
-from typing import Optional
 from app.domain.services.text_llm_service import ITextLLMService
-from app.domain.services.graph_repository import IGraphRepository
 from app.domain.models.graph import ExtractionResult
 
 class GenerateOntologyUseCase:
-    def __init__(
-        self,
-        llm_service: ITextLLMService,
-        graph_repository: IGraphRepository
-    ):
+    def __init__(self, llm_service: ITextLLMService):
         self.llm_service = llm_service
-        self.graph_repository = graph_repository
 
     async def execute(self, text_content: str) -> ExtractionResult:
         # 1. LLMを用いてテキストからオントロジー（ノード・エッジ）を抽出
         result = await self.llm_service.generate_ontology(text_content)
         
-        # 2. 抽出されたノードをデータベースへ保存
+        # 2. 未分類概念（ap:UnclassifiedConcept）が含まれているか確認し、
+        #    必要に応じてステータスを変更またはイベントを発火する処理を追加。
         for node in result.nodes:
-            await self.graph_repository.save_node(node)
-            
-        # 3. 抽出されたエッジをデータベースへ保存
-        for edge in result.edges:
-            await self.graph_repository.save_edge(edge)
-            
-        # 4. 未分類概念（ap:UnclassifiedConcept）が含まれているか確認し、
-        #    必要に応じてステータスを変更またはイベントを発火する処理をここに追加可能。
-        #    （本実装では、後続のワークフローやEvolution Agentがこれを検知する前提）
+            if node.properties.get("type") == "ap:UnclassifiedConcept":
+                node.properties["status"] = "pending"
+                result.needs_evolution = True
 
         return result
 ```
@@ -165,9 +153,8 @@ FastAPIのルーターとして、外部（またはConsole UI）からのリク
 
 ```python
 from fastapi import APIRouter, Body, Depends, HTTPException
-from app.core.dependencies import get_text_llm_service, get_graph_repository
+from app.core.dependencies import get_text_llm_service
 from app.domain.services.text_llm_service import ITextLLMService
-from app.domain.services.graph_repository import IGraphRepository
 from app.usecases.generate_ontology import GenerateOntologyUseCase
 from app.domain.models.graph import ExtractionResult
 
@@ -177,13 +164,9 @@ router = APIRouter()
 async def generate_ontology_api(
     text_content: str = Body(..., media_type="text/plain"),
     llm_service: ITextLLMService = Depends(get_text_llm_service),
-    graph_repository: IGraphRepository = Depends(get_graph_repository)
 ) -> ExtractionResult:
     try:
-        usecase = GenerateOntologyUseCase(
-            llm_service=llm_service,
-            graph_repository=graph_repository
-        )
+        usecase = GenerateOntologyUseCase(llm_service=llm_service)
         result = await usecase.execute(text_content=text_content)
         return result
     except Exception as e:
