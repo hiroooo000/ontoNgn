@@ -268,12 +268,12 @@ sequenceDiagram
     alt 未分類概念なし
         Ont ->> DB: 本保存処理
         DB -->> Ont: 完了
-        Ont -->> WF: 抽出完了ステータス
+        Ont -->> WF: 抽出オントロジー情報 (JSON)
         WF -->> UI: 処理完了レスポンス
     else 未分類概念あり
         Ont ->> DB: 抽出データを一時保存 (Pending)
         DB -->> Ont: 完了
-        Ont -->> WF: 要スキーマ進化ステータス
+        Ont -->> WF: 抽出オントロジー情報 (Pending状態付与済 JSON)
         WF -->> UI: 処理保留レスポンス (要承認)
     end
 ```
