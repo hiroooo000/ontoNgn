@@ -9,88 +9,65 @@ Version: 2.0.0
 
 ### 1.1 アーキテクチャ構成図
 
-```
-+-----------------------------------------------------------------------+
-|                         Frameworks & Drivers                          |
-|  - Web UI (SPA: Vue 3 + Vite)  - Pydantic Settings                    |
-|  - CLI Commands          - pdf2image / LibreOffice Headless           |
-|  - PostgreSQL Client     - Neo4j Driver / Kuzu DB Python API          |
-+-----------------------------------------------------------------------+
-                               |
-+------------------------------v----------------------------------------+
-|                        Interface Adapters                             |
-|  - REST API Routers (Workflow, Render, Vision, Ontology, Graph)       |
-|  - LMStudioGateway (OpenAI Python Client Wrapper)                     |
-|  - DocumentRenderer (PDF/Word/Excel to PNG)                           |
-|  - [Concrete Repository Adapters]                                     |
-|    * Neo4jGraphRepository     * AgeGraphRepository (Postgres AGE)     |
-|    * KuzuGraphRepository      * InMemoryRdfRepository (rdflib)        |
-+-----------------------------------------------------------------------+
-                               |
-+------------------------------v----------------------------------------+
-|                            Use Cases                                  |
-|  - WorkflowOrchestrator (Manages Pipeline State)                      |
-|  - RenderDocumentUseCase      - ExtractTextUseCase (Vision)           |
-|  - GenerateOntologyUseCase    - ExportGraphRAGUseCase                 |
-+-----------------------------------------------------------------------+
-                               |
-+------------------------------v----------------------------------------+
-|                             Domain                                    |
-|  - Domain Models (GraphNode, GraphEdge, ExtractionResult - Pydantic)  |
-|  - Domain Interfaces (Abstract Base Classes - abc.ABC)                |
-|    * IVisionService           * ITextLLMService                       |
-|    * IGraphRepository                                                 |
-+-----------------------------------------------------------------------+
-```
+```mermaid
+flowchart TD
+    subgraph ClientLayer["Frontend (TypeScript / Vue 3)"]
+        UI["Web UI (SPA: Vue 3 + Vite)\n- Axios / Fetch\n- vis-network (Graph)"]
+    end
 
-### 1.2 ディレクトリ構造
+    subgraph BackendLayer["Backend (Python 3.10+)"]
+        direction TB
+        
+        subgraph Frameworks["Frameworks & Drivers (外側)"]
+            direction LR
+            CLI["CLI Commands"]
+            DBClient["PostgreSQL / Neo4j / Kuzu DB API"]
+            Tools["pdf2image / LibreOffice\nPydantic Settings"]
+        end
 
-```text
-app/
-├── main.py                     # エントリーポイント (FastAPI application)
-├── core/                       # 環境設定と共通基盤
-│   ├── config.py               # 環境設定のスキーマ定義 (Pydantic Settings)
-│   └── dependencies.py         # FastAPI Dependency Injection 設定
-├── domain/                     # 1. ドメインレイヤー
-│   ├── models/
-│   │   └── graph.py            # GraphNode, GraphEdge 定義 (Pydantic)
-│   └── services/
-│       ├── vision_service.py     # IVisionService 抽象クラス
-│       ├── text_llm_service.py   # ITextLLMService 抽象クラス
-│       └── graph_repository.py   # IGraphRepository 抽象クラス
-├── usecases/                   # 2. ユースケースレイヤー
-│   ├── render_document.py      # 画像レンダリング処理
-│   ├── extract_text.py         # Visionを用いたテキスト抽出
-│   ├── generate_ontology.py    # LLMを用いたオントロジー生成
-│   └── export_graphrag.py      # GraphRAG用データエクスポート
-├── workflows/                  # ワークフロー制御層
-│   └── orchestrator.py         # パイプライン状態管理と各UseCase/APIの非同期呼び出し
-├── interfaces/                 # 3. インターフェースアダプター層
-│   ├── api/                    # 疎結合化されたFastAPI ルーター群
-│   │   ├── workflow.py         # ワークフロー制御API
-│   │   ├── render.py           # レンダリングAPI
-│   │   ├── vision.py           # Vision抽出API
-│   │   ├── ontology.py         # オントロジー生成・管理API
-│   │   └── graph.py            # グラフ可視化・検索API
-│   ├── gateways/               # 外部システム（LLM等）の具象アダプター
-│   │   └── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
-│   ├── repositories/           # DBリポジトリの具象アダプター
-│   │   ├── kuzu_graph_repository.py # Kuzu DB用アダプター
-│   │   ├── age_graph_repository.py  # Apache AGE用アダプター
-│   │   ├── neo4j_graph_repository.py# Neo4j用アダプター
-│   │   └── in_memory_rdf_repository.py # rdflib用アダプター
-│   └── renderers/              # ドキュメントレンダラー
-│       └── document_renderer.py
-└── infrastructure/             # 4. インフラストラクチャ層
-    └── database/               # DBドライバ・接続セッション管理
-        └── kuzu_db.py          # Kuzu DBの低レベル接続・クエリ実行
-frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
-├── package.json                # Node.js 依存関係
-├── src/                        # UIソースコード
-└── dist/                       # ビルド済み静的ファイル (FastAPIがマウントして配信)
+        subgraph Adapters["Interface Adapters (インターフェース層)"]
+            direction LR
+            API["REST API Routers\n(FastAPI / OpenAPI)"]
+            LMGW["LMStudioGateway\n(OpenAI Client)"]
+            Renderer["DocumentRenderer"]
+            Repos["Concrete Repository Adapters"]
+        end
+
+        subgraph UseCases["Use Cases (アプリケーション層)"]
+            direction LR
+            Orchestrator["WorkflowOrchestrator"]
+            UC_Task["RenderDocument / ExtractText\nGenerateOntology / ExportGraphRAG"]
+        end
+
+        subgraph Domain["Domain (ドメイン層)"]
+            direction LR
+            Models["Domain Models (Pydantic)\nGraphNode, GraphEdge"]
+            Interfaces["Domain Interfaces (abc.ABC)"]
+        end
+        
+        Frameworks --> Adapters
+        Adapters --> UseCases
+        UseCases --> Domain
+    end
+
+    UI -- "REST API (JSON)\nHTTP Request / Response" --> API
+
+    classDef layer fill:#f7f9fa,stroke:#d1d5db,stroke-width:2px,color:#374151;
+    classDef innerNode fill:#ffffff,stroke:#9ca3af,stroke-width:1px,color:#111827;
+    classDef clientLayer fill:#eff6ff,stroke:#93c5fd,stroke-width:2px,color:#1e3a8a;
+    classDef backendLayer fill:#fdf4ff,stroke:#f0abfc,stroke-width:2px,color:#701a75;
+    
+    class Frameworks,Adapters,UseCases,Domain layer;
+    class ClientLayer clientLayer;
+    class BackendLayer backendLayer;
+    class UI,CLI,DBClient,Tools,API,LMGW,Renderer,Repos,Orchestrator,UC_Task,Models,Interfaces innerNode;
 ```
 
----
+**言語とコンポーネント間の連携（TypeScript/JavaScript ↔ Python）**:
+- **Frontend (TypeScript/JavaScript)**: `Vue 3` と `Vite` を用いたSPA（Single Page Application）として構築されます。UIの描画やネットワークグラフ（`vis-network` 等）の制御をTS/JSエコシステムで完結させます。
+- **Backend (Python)**: LLMの呼び出し、重いPDF処理、グラフDB操作など、データサイエンス/AIエコシステムに強い Python (`FastAPI`) で構築されます。
+- **境界 (REST API)**: 両者は完全に分離されており、`FastAPI` が自動生成する OpenAPI (Swagger) スキーマに基づき、JSONフォーマットの HTTP/REST API を介して疎結合に連携します。これにより、Pydanticモデル（Python）とTypeScriptの型定義を安全に対応させることが可能です。
+
 
 ## 2. 機能一覧および各機能の概要
 
@@ -303,7 +280,56 @@ sequenceDiagram
 
 ---
 
-## 7. 環境設定と設定値 (Environment Configuration)
+## 7. ディレクトリ構造 (Directory Structure)
+
+```text
+app/
+├── main.py                     # エントリーポイント (FastAPI application)
+├── core/                       # 環境設定と共通基盤
+│   ├── config.py               # 環境設定のスキーマ定義 (Pydantic Settings)
+│   └── dependencies.py         # FastAPI Dependency Injection 設定
+├── domain/                     # 1. ドメインレイヤー
+│   ├── models/
+│   │   └── graph.py            # GraphNode, GraphEdge 定義 (Pydantic)
+│   └── services/
+│       ├── vision_service.py     # IVisionService 抽象クラス
+│       ├── text_llm_service.py   # ITextLLMService 抽象クラス
+│       └── graph_repository.py   # IGraphRepository 抽象クラス
+├── usecases/                   # 2. ユースケースレイヤー
+│   ├── render_document.py      # 画像レンダリング処理
+│   ├── extract_text.py         # Visionを用いたテキスト抽出
+│   ├── generate_ontology.py    # LLMを用いたオントロジー生成
+│   └── export_graphrag.py      # GraphRAG用データエクスポート
+├── workflows/                  # ワークフロー制御層
+│   └── orchestrator.py         # パイプライン状態管理と各UseCase/APIの非同期呼び出し
+├── interfaces/                 # 3. インターフェースアダプター層
+│   ├── api/                    # 疎結合化されたFastAPI ルーター群
+│   │   ├── workflow.py         # ワークフロー制御API
+│   │   ├── render.py           # レンダリングAPI
+│   │   ├── vision.py           # Vision抽出API
+│   │   ├── ontology.py         # オントロジー生成・管理API
+│   │   └── graph.py            # グラフ可視化・検索API
+│   ├── gateways/               # 外部システム（LLM等）の具象アダプター
+│   │   └── lmstudio_gateway.py # LMStudio接続 (Vision/Text両対応)
+│   ├── repositories/           # DBリポジトリの具象アダプター
+│   │   ├── kuzu_graph_repository.py # Kuzu DB用アダプター
+│   │   ├── age_graph_repository.py  # Apache AGE用アダプター
+│   │   ├── neo4j_graph_repository.py# Neo4j用アダプター
+│   │   └── in_memory_rdf_repository.py # rdflib用アダプター
+│   └── renderers/              # ドキュメントレンダラー
+│       └── document_renderer.py
+└── infrastructure/             # 4. インフラストラクチャ層
+    └── database/               # DBドライバ・接続セッション管理
+        └── kuzu_db.py          # Kuzu DBの低レベル接続・クエリ実行
+frontend/                       # [NEW] フロントエンドSPA (Vue 3 + Vite)
+├── package.json                # Node.js 依存関係
+├── src/                        # UIソースコード
+└── dist/                       # ビルド済み静的ファイル (FastAPIがマウントして配信)
+```
+
+---
+
+## 8. 環境設定と設定値 (Environment Configuration)
 
 本システムは `app.core.config.Settings` (Pydantic Settings) を利用してアプリケーション全体の設定を管理しています。
 実行時に必要な設定値は、環境変数 `APP_ENV`（デフォルトは `test`） に応じて、プロジェクト直下の `.env.{APP_ENV}` ファイルから読み込まれます。
