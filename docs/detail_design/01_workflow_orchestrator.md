@@ -281,3 +281,59 @@ Vue Flow 等のノードベースUIライブラリで直接描画・編集がで
   - **失敗からの再開（レジューム）**: Failedノードが発生した場合、そのノードのパラメータを修正した上で「このノードから再実行」ボタンを押せる機能。
 - **実行ノード詳細ログパネル (Node Execution Log Panel)**
   - 完了済・失敗ノードをクリックした際、そのノードの「実行時間」「入力ペイロード(JSON)」「出力ペイロード(JSON)」「エラー詳細（スタックトレース）」を確認できるデバッグ用のパネル。
+
+## 10. データモデル設計 (Data Model / Storage)
+
+ワークフローの定義、および実行ごとのステータスやコンテキストを永続化するために、以下のリレーショナルデータベース（PostgreSQL等）テーブルを使用します。
+
+### 10.1 ER図
+
+```mermaid
+erDiagram
+    workflows ||--o{ workflow_executions : "has many"
+    workflow_executions ||--o{ node_executions : "has many"
+
+    workflows {
+        UUID id PK
+        VARCHAR name "ワークフロー名"
+        JSONB nodes "Vue Flow互換のノード配列"
+        JSONB edges "Vue Flow互換のエッジ配列"
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    workflow_executions {
+        UUID id PK
+        UUID workflow_id FK
+        VARCHAR status "Running, Paused, Success, Failed 等"
+        JSONB context_payload "実行コンテキスト全体のスナップショット"
+        TIMESTAMP started_at
+        TIMESTAMP completed_at
+    }
+
+    node_executions {
+        UUID id PK
+        UUID execution_id FK
+        VARCHAR node_id "workflows.nodes のID (例: node-1)"
+        VARCHAR status "Running, Success, Failed"
+        JSONB inputs "ノードへの入力ペイロード"
+        JSONB outputs "ノードからの出力ペイロード"
+        TEXT error_log "エラー発生時のスタックトレース等"
+        TIMESTAMP started_at
+        TIMESTAMP completed_at
+    }
+```
+
+### 10.2 テーブル設計の意図
+
+1. **`workflows` テーブル**
+   - ワークフローの静的な「定義」を保存します。
+   - `nodes` および `edges` カラムには `JSONB` 型を採用し、Vue Flow（フロントエンド）の形式をそのまま保存・復元できるようにすることで、将来的にノード定義のプロパティが増えた際にもテーブルスキーマの変更（マイグレーション）を不要にします。
+
+2. **`workflow_executions` テーブル**
+   - パイプライン全体の「1回の実行（Run）」をトラッキングします。
+   - `context_payload` (JSONB) には、最初に入力されたデータから、各ノードの処理を経て追記されていく全体のステート（変数群）を保存します。これが途中再開（レジューム）機能の基盤になります。
+
+3. **`node_executions` テーブル**
+   - 実行内の「個別ノードごとの処理結果」をトラッキングします。
+   - どこまで成功したか、どのノードで失敗したかを特定し、`error_log` と `inputs` / `outputs` を記録することで、コンソールUIから「実行ログ・デバッグ」を容易に閲覧可能にします。
