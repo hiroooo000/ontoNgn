@@ -1,83 +1,130 @@
 # 05. Ontology Linking & Merging 詳細設計
 
-## 1. 概要
-新規ドキュメントから抽出された独自のオントロジー（ノード・エッジ群）を、すでにグラフデータベース（Kùzu）に蓄積されている既存のオントロジー（知識グラフ）と関連付け、統合するためのアーキテクチャ詳細設計です。
-APIコストが無料であるローカルLLM（LMStudio）の利点を活かし、多段推論による**「アンカー探索 ＋ サブグラフ拡張 (GraphRAG方式)」**を採用しています。
+## 1. 対象機能の概要・処理一覧
 
-## 2. 処理アーキテクチャ（多段LLM推論フロー）
+新規ドキュメントから抽出された独自のオントロジー（ノード・エッジ群）を、グラフデータベース（Kùzu）に蓄積されている既存のオントロジー（知識グラフ）と関連付け、統合するための機能です。
+多段LLM推論（アンカー探索＋サブグラフ拡張）を用いて、コンテキスト長を節約しつつ高精度なリンクを生成します。
 
-全体処理は以下の4つのステップで構成され、不要な全件検索を避けつつ、LLMに適切なコンテキスト（局所的なサブグラフ）のみを渡すことで、トークン制限の回避と推論精度の向上を両立します。
+### 処理一覧
+1. **中心概念抽出**: 新規オントロジーから、検索起点となる「アンカー（キーワード）」をLLMで抽出。
+2. **既存ノード検索**: アンカーを元に、VectorDB（pgvector）または文字列検索で既存グラフから類似ノード候補を取得。
+3. **アンカー検証**: 検索ヒットしたノード候補が本当に新規文書の文脈と一致するか、LLMを用いて判定。
+4. **サブグラフ取得**: 確定したアンカーノードを起点に、KùzuからNホップ以内の周辺グラフ情報を取得。
+5. **最終統合推論**: 新規オントロジーと取得した周辺サブグラフをLLMに渡し、繋ぎ込み用のエッジや同一概念のマージ提案を生成する。
+6. **DB更新**: 統合結果をグラフデータベースに永続化（Upsert）する。
 
-### ステップ1: LLMによる「中心概念（アンカー）」の抽出
-新規ドキュメントのテキスト（または要約）をLLMに渡し、そのドキュメントの核となる重要な概念を抽出させます。
-- **目的**: 既存グラフのどこに接続すべきかの「起点」となるキーワードを探す。
-- **抽出対象**: 手続き名、主要な対象者、必須書類、管轄組織など（3〜5つ程度）。
-- **出力例**: `["児童手当", "養育者", "市区町村窓口", "所得制限"]`
+## 2. モジュール構成図・クラス図
 
-### ステップ2: ベクトル検索 / 全文検索による既存ノード照合
-ステップ1で得られたキーワード群を使用し、システム内の検索エンジン（pgvectorによるベクトル検索、またはKùzuの文字列検索）を用いて、既存のオントロジーノードの中から類似度の高いTop-Kノードを取得します。
-- **目的**: テキストの揺らぎ（「子供手当」と「児童手当」など）を吸収し、既存グラフ上の具体的なノードID（URI）を特定する。
-- **出力例**: 既存ノード `ap:Procedure_JidouTeate`, `ap:Actor_Parent` のリスト。
+### モジュール構成図
+```mermaid
+classDiagram
+    direction TB
+    
+    namespace UseCases {
+        class LinkOntologyUseCase
+    }
+    
+    namespace Domain_Services {
+        class ITextLLMService
+        class IGraphRepository
+    }
+    
+    LinkOntologyUseCase --> ITextLLMService : LLM連携
+    LinkOntologyUseCase --> IGraphRepository : DB連携
+```
 
-### ステップ3: LLMによるアンカー候補の妥当性検証
-ステップ2でヒットした「既存ノードの候補」と「新規ドキュメントの内容」を再度LLMに渡し、本当に同一または直接関連する概念であるかを検証させます。
-- **目的**: ベクトル検索特有の「意味は似ているが文脈が違う（False Positive）」ノードを排除する。
-- **プロンプトイメージ**: 「新規ドキュメントの内容と、既存ノード『児童手当の支給手続き』は関連していますか？理由とともにYes/Noで答えてください。」
-- **結果**: `Yes` と判定された既存ノードが、正式な**「アンカーノード」**として確定します。
+### クラス図（依存インターフェース拡張）
+```mermaid
+classDiagram
+    class ITextLLMService {
+        <<Interface>>
+        +extract_anchor_keywords(text: str) List~str~
+        +validate_anchor(text: str, candidate_node: GraphNode) bool
+        +generate_links(new_graph: ExtractionResult, context_subgraph: ExtractionResult) ExtractionResult
+    }
+    
+    class IGraphRepository {
+        <<Interface>>
+        +search_nodes_by_keywords(keywords: List~str~, top_k: int) List~GraphNode~
+        +get_subgraph(anchor_ids: List~str~, max_hops: int) ExtractionResult
+    }
+```
 
-### ステップ4: サブグラフの取得と最終リンク生成
-確定したアンカーノードを起点として、グラフデータベース（Kùzu）から**「Nホップ以内（例: 2ホップ）の周辺ノードとエッジ（サブグラフ）」**を取得します。
-- **目的**: アンカー周辺の既存の論理構造（誰が対象で、何が必要か等）をコンテキストとしてLLMに提示する。
-- **最終LLM推論**: 
-  - **入力**: 「新規ドキュメントから抽出した新しいオントロジー」 ＋ 「Kùzuから取得した既存の周辺サブグラフ」
-  - **指示**: 「これら2つのグラフ情報を統合し、新規ノードと既存ノードを繋ぐ新しい関係性（エッジ）、または同一概念の統合（ノードのマージ）を提案してください。」
-- **出力**: 新たに追加すべきGraphEdgeのリスト、および更新すべきGraphNodeのリスト。
+## 3. 処理フロー図・シーケンス図
 
-## 3. シーケンス図
+### 処理フロー図
+```mermaid
+flowchart TD
+    A["新規オントロジー受領"] --> B["LLM: 中心概念（アンカー）キーワード抽出"]
+    B --> C["DB: 類似ノードベクトル/テキスト検索"]
+    C --> D{"候補ノードのLLM妥当性検証"}
+    D -- 関連なし --> E["候補から除外"]
+    D -- 関連あり --> F["アンカー確定"]
+    F --> G["DB: 確定アンカーからNホップのサブグラフ取得"]
+    G --> H["LLM: 新規グラフと既存サブグラフの統合推論"]
+    H --> I["DB: 新規エッジの追加・ノードの統合"]
+```
 
+### シーケンス図
 ```mermaid
 sequenceDiagram
-    actor User
-    participant Usecase as Linking UseCase
-    participant LLM as Text LLM Service
-    participant VectorDB as Vector / Search DB
-    participant GraphDB as Graph DB (Kùzu)
+    actor Workflow
+    participant Usecase as LinkOntologyUseCase
+    participant LLM as ITextLLMService
+    participant DB as IGraphRepository
 
-    User->>Usecase: ドキュメント投入 (またはバッチ起動)
+    Workflow->>Usecase: 新規オントロジーデータ投入
     
     %% ステップ1
-    Usecase->>LLM: 1. 中心概念（キーワード）の抽出要求
-    LLM-->>Usecase: 抽出キーワード群
+    Usecase->>LLM: extract_anchor_keywords()
+    LLM-->>Usecase: キーワード群
     
     %% ステップ2
-    Usecase->>VectorDB: 2. キーワードの類似ノード検索 (Top-K)
-    VectorDB-->>Usecase: 既存ノード候補リスト
+    Usecase->>DB: search_nodes_by_keywords(Top-K)
+    DB-->>Usecase: 既存ノード候補リスト
     
     %% ステップ3
     loop 候補ノードごと
-        Usecase->>LLM: 3. 妥当性検証 (関連しているか？)
+        Usecase->>LLM: validate_anchor()
         LLM-->>Usecase: 判定結果 (Yes/No)
     end
     
     %% ステップ4
-    Usecase->>GraphDB: 4. 確定アンカーからNホップのサブグラフ取得
-    GraphDB-->>Usecase: 既存サブグラフ情報
+    Usecase->>DB: get_subgraph(anchor_ids, max_hops=2)
+    DB-->>Usecase: 既存サブグラフ情報
     
-    Usecase->>LLM: 5. 新規オントロジーと既存サブグラフの統合推論
-    LLM-->>Usecase: 新規エッジ・統合ノード提案
+    %% ステップ5
+    Usecase->>LLM: generate_links(new_graph, subgraph)
+    LLM-->>Usecase: 統合結果（新規エッジ等）
     
-    Usecase->>GraphDB: 6. 統合結果をDBへ永続化 (Upsert)
-    Usecase-->>User: 完了・結果返却
+    Usecase->>DB: upsert()
+    Usecase-->>Workflow: リンク処理完了
 ```
 
-## 4. 必要なインターフェース拡張
+## 4. APIインターフェース仕様 / 入出力データ（スキーマ）
 
-この処理方式を実現するため、各コンポーネントに以下のインターフェース拡張が必要となります。
+本処理はOrchestratorから内部的に呼び出されます。
 
-- **`ITextLLMService`**:
-  - `extract_anchor_keywords(text: str) -> List[str]`
-  - `validate_anchor(text: str, candidate_node: GraphNode) -> bool`
-  - `generate_links(new_graph: ExtractionResult, context_subgraph: ExtractionResult) -> ExtractionResult`
-- **`IGraphRepository`**:
-  - `search_nodes_by_keywords(keywords: List[str], top_k: int) -> List[GraphNode]` (Vector/Text検索)
-  - `get_subgraph(anchor_ids: List[str], max_hops: int) -> ExtractionResult` (Kùzuクエリ)
+- **入力**: 
+  - `new_extraction` (`ExtractionResult`): 直前に抽出された新規のノード・エッジデータ。
+- **出力**: 
+  - 成功時はDBへの永続化が行われ、ステータスとして完了を返却する。
+
+## 5. 異常系・エラーハンドリング
+
+| 想定されるエラー | 原因 | 対応方針 |
+| :--- | :--- | :--- |
+| **アンカー抽出失敗** | 該当ドキュメントが独立しすぎており、既存概念と一切ヒットしない | Isolated Graph（独立したサブグラフ）としてDBに保存する。後日進化プロセスで再検討される可能性がある。 |
+| **LLM推論エラー** | コンテキスト長超過、または構造化出力エラー | 検索Top-K数やホップ数を減らして自動フォールバック（リトライ）を行う。 |
+
+## 6. 依存する環境変数・外部設定
+
+- KùzuDB および ベクトル検索エンジン（PostgreSQL/pgvector等）への接続設定。
+- `MAX_SUBGRAPH_HOPS`: サブグラフ取得時の最大ホップ数（通常は 1 〜 2）。
+
+## 7. テスト方針
+
+- **単体テスト**: 
+  - `LinkOntologyUseCase` に対し、`ITextLLMService` と `IGraphRepository` をモック化し、各ステップ（検索、検証、統合）が正しい順序で呼ばれるかを検証。
+- **結合テスト**: 
+  - 既知の「児童手当」オントロジーがDBにある状態で、関連する新規申請ドキュメントを入力し、正しい関係（例: `ap:requiresDocument`）が自動生成されるかを確認する。

@@ -120,7 +120,12 @@ flowchart TD
 | GET | `/api/v1/export/graphrag` | LlamaIndex等向けJSON形式のエクスポート | `?format=json` | `{ "nodes": [...], "edges": [...] }` |
 | GET | `/api/v1/export/turtle` | 標準的なRDF/Turtle形式でのエクスポート | - | (Turtle format text file) |
 
-### 3.5 Graph API (グラフCRUD・可視化・探索)
+### 3.5 Ontology API (オントロジー生成・個別実行)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/ontology/generate` | テキストから直接オントロジーを生成（Workflowを経由しない開発・個別実行用） | `{ "text_content": "..." }` | `{ "nodes": [...], "edges": [...] }` |
+
+### 3.6 Graph API (グラフCRUD・可視化・探索)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
 | :--- | :--- | :--- | :--- | :--- |
 | POST | `/api/v1/graph/ingest` | 抽出済みのオントロジーJSONを一括でGraphDBへUpsert登録 | `{ "nodes": [...], "edges": [...] }` | `{ "status": "success", "nodes_upserted": 10 }` |
@@ -298,6 +303,7 @@ app/
 │   ├── render_document.py      # 画像レンダリング処理
 │   ├── extract_text.py         # Visionを用いたテキスト抽出
 │   ├── generate_ontology.py    # LLMを用いたオントロジー生成
+│   ├── graph_crud.py           # ノード・エッジの作成・削除等のCRUD処理
 │   └── export_graphrag.py      # GraphRAG用データエクスポート
 ├── workflows/                  # ワークフロー制御層
 │   └── orchestrator.py         # パイプライン状態管理と各UseCase/APIの非同期呼び出し
