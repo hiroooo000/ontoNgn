@@ -1,4 +1,4 @@
-# 08. Schema Evolution API 詳細設計
+# 08. Schema Evolution 管理機能 詳細設計
 
 ## 1. 対象機能の概要・処理一覧
 
@@ -149,3 +149,14 @@ sequenceDiagram
   - `FastAPI` の `TestClient` を使用。
   - テスト用DBにPending状態の提案をセットアップし、`/approve` を呼び出す。
   - `SchemaCompiler` のメソッドが意図した引数でコールされたか（モック化して検証）、およびDBのステータスが `Approved` に変わったかを確認する。
+
+## 8. 画面設計 (UI Screens)
+
+Console UI のポータルからアクセス可能な専用のSPA画面コンポーネント（Vue 3）として提供されます。
+
+### 8.1 スキーマ進化・承認画面 (Schema Evolution Dashboard)
+- AI（Ontology Evolution Agent）が提案した未知概念の「クラス昇格（Promote）」や「マッピング（Map to Property）」の候補リストをテーブル等で一覧表示する。
+- **機能・アクション**:
+  - **プレビュー確認**: 提案された新しいクラスのプロパティ構造や、元のテキストコンテキストをサイドパネルで確認できる。
+  - **内容の編集**: ユーザーが提案内容（クラス名やプロパティ名）を直接修正することができる。
+  - **Approve / Reject**: 選択した提案を「承認」または「却下」し、本設計書のAPI（`/approve`, `/reject`）を呼び出してバックエンドの処理（コンパイラの起動・ワークフローの再開）をトリガーする。
