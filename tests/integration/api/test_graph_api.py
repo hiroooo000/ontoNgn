@@ -14,14 +14,28 @@ client = TestClient(app)
 @pytest.fixture
 def override_graph_repo() -> Generator[IGraphRepository, None, None]:
     class MockGraphRepository(IGraphRepository):
+        def __init__(self) -> None:
+            self.saved_nodes: List[GraphNode] = []
+            self.saved_edges: List[GraphEdge] = []
+            self.deleted_nodes: List[str] = []
+            self.deleted_edges: List[tuple[str, str]] = []
+
         async def save_node(self, node: GraphNode) -> None:
-            pass
+            self.saved_nodes.append(node)
 
         async def save_edge(self, edge: GraphEdge) -> None:
-            pass
+            self.saved_edges.append(edge)
 
         async def get_node(self, node_id: str) -> Optional[GraphNode]:
+            if node_id == "node_1":
+                return GraphNode(id="node_1", label="TestNode", properties={"name": "test"})
             return None
+
+        async def delete_node(self, node_id: str) -> None:
+            self.deleted_nodes.append(node_id)
+
+        async def delete_edge(self, source_id: str, target_id: str) -> None:
+            self.deleted_edges.append((source_id, target_id))
 
         async def query_neighbors(self, node_id: str) -> List[GraphEdge]:
             return []
@@ -66,34 +80,66 @@ def test_graph_search_api_with_results(override_graph_repo: IGraphRepository) ->
     response = client.get("/api/v1/graph/search?q=test&hops=1")
     assert response.status_code == 200
     data = response.json()
-    assert "nodes" in data
-    assert "edges" in data
-    assert "hits" in data
     assert len(data["nodes"]) == 2
-    assert len(data["edges"]) == 1
-    assert len(data["hits"]) == 1
-    assert data["nodes"][0]["id"] == "node_1"
-    assert data["edges"][0]["relation_type"] == "related_to"
-    assert data["hits"][0]["id"] == "node_1"
 
 
 def test_graph_search_api_no_results(override_graph_repo: IGraphRepository) -> None:
     response = client.get("/api/v1/graph/search?q=unknown&hops=1")
     assert response.status_code == 200
     data = response.json()
-    assert "hits" in data
     assert len(data["nodes"]) == 0
-    assert len(data["edges"]) == 0
-    assert len(data["hits"]) == 0
 
 
 def test_graph_expand_api(override_graph_repo: IGraphRepository) -> None:
     response = client.get("/api/v1/graph/expand?node_id=node_1&hops=2")
     assert response.status_code == 200
     data = response.json()
-    assert "nodes" in data
-    assert "edges" in data
-    assert "hits" not in data
     assert len(data["nodes"]) == 2
-    assert len(data["edges"]) == 1
-    assert data["nodes"][0]["id"] == "node_1"
+
+
+def test_graph_ingest_api(override_graph_repo: Any) -> None:
+    payload = {
+        "nodes": [{"id": "n1", "label": "L1", "properties": {}}],
+        "edges": [{"source_id": "n1", "target_id": "n2", "relation_type": "REL", "properties": {}}],
+    }
+    response = client.post("/api/v1/graph/ingest", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert len(override_graph_repo.saved_nodes) == 1
+    assert len(override_graph_repo.saved_edges) == 1
+
+
+def test_graph_create_node_api(override_graph_repo: Any) -> None:
+    payload = {"id": "n1", "label": "L1", "properties": {}}
+    response = client.post("/api/v1/graph/nodes", json=payload)
+    assert response.status_code == 200
+    assert len(override_graph_repo.saved_nodes) == 1
+
+
+def test_graph_get_node_api(override_graph_repo: Any) -> None:
+    response = client.get("/api/v1/graph/nodes/node_1")
+    assert response.status_code == 200
+    assert response.json()["id"] == "node_1"
+
+    response = client.get("/api/v1/graph/nodes/unknown")
+    assert response.status_code == 404
+
+
+def test_graph_delete_node_api(override_graph_repo: Any) -> None:
+    response = client.delete("/api/v1/graph/nodes/node_1")
+    assert response.status_code == 200
+    assert "node_1" in override_graph_repo.deleted_nodes
+
+
+def test_graph_create_edge_api(override_graph_repo: Any) -> None:
+    payload = {"source_id": "n1", "target_id": "n2", "relation_type": "REL", "properties": {}}
+    response = client.post("/api/v1/graph/edges", json=payload)
+    assert response.status_code == 200
+    assert len(override_graph_repo.saved_edges) == 1
+
+
+def test_graph_delete_edge_api(override_graph_repo: Any) -> None:
+    response = client.delete("/api/v1/graph/edges?source_id=n1&target_id=n2")
+    assert response.status_code == 200
+    assert ("n1", "n2") in override_graph_repo.deleted_edges

@@ -155,3 +155,34 @@ async def test_delete_document_graph(temp_repo: KuzuGraphRepository) -> None:
     retrieved = await temp_repo.get_node("ap:DocNode2")
     assert retrieved is not None
     assert "doc1" not in retrieved.properties.get("sourceDocumentIds", [])
+
+
+@pytest.mark.asyncio
+async def test_delete_node(temp_repo: KuzuGraphRepository) -> None:
+    node = GraphNode(id="ap:DeleteNode1", label="Node", properties={})
+    await temp_repo.save_node(node)
+
+    assert await temp_repo.get_node("ap:DeleteNode1") is not None
+
+    await temp_repo.delete_node("ap:DeleteNode1")
+    assert await temp_repo.get_node("ap:DeleteNode1") is None
+
+
+@pytest.mark.asyncio
+async def test_delete_edge(temp_repo: KuzuGraphRepository) -> None:
+    from app.domain.models.graph import GraphEdge
+
+    node1 = GraphNode(id="ap:EdgeDel1", label="Node", properties={})
+    node2 = GraphNode(id="ap:EdgeDel2", label="Node", properties={})
+    await temp_repo.save_node(node1)
+    await temp_repo.save_node(node2)
+
+    edge = GraphEdge(source_id="ap:EdgeDel1", target_id="ap:EdgeDel2", relation_type="REL", properties={})
+    await temp_repo.save_edge(edge)
+
+    neighbors = await temp_repo.query_neighbors("ap:EdgeDel1")
+    assert len(neighbors) == 1
+
+    await temp_repo.delete_edge("ap:EdgeDel1", "ap:EdgeDel2")
+    neighbors_after = await temp_repo.query_neighbors("ap:EdgeDel1")
+    assert len(neighbors_after) == 0

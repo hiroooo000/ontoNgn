@@ -237,3 +237,14 @@ class KuzuGraphRepository(IGraphRepository):
                     edges.append(edge)
 
         return ExtractionResult(nodes=list(nodes.values()), edges=edges)
+
+    async def delete_node(self, node_id: str) -> None:
+        query = "MATCH (n:Entity {id: $id}) DETACH DELETE n"
+        self.conn.execute(query, parameters={"id": node_id})
+
+    async def delete_edge(self, source_id: str, target_id: str) -> None:
+        query = """
+        MATCH (src:Entity {id: $src_id})-[r:Relation]->(dst:Entity {id: $dst_id})
+        DELETE r
+        """
+        self.conn.execute(query, parameters={"src_id": source_id, "dst_id": target_id})
