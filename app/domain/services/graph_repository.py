@@ -54,3 +54,13 @@ class IGraphRepository(ABC):
     async def get_subgraph(self, anchor_ids: List[str], max_hops: int) -> ExtractionResult:
         """指定したアンカーノードからNホップ以内のサブグラフを取得します。"""
         pass
+
+    @abstractmethod
+    async def delete_node(self, node_id: str) -> None:
+        """一意なID (URI) からノードを削除します。関連するエッジも削除されます。"""
+        pass
+
+    @abstractmethod
+    async def delete_edge(self, source_id: str, target_id: str) -> None:
+        """source_id と target_id を結ぶエッジを削除します。"""
+        pass

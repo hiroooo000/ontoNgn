@@ -1,11 +1,93 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.dependencies import get_graph_repository
+from app.domain.models.graph import ExtractionResult, GraphEdge, GraphNode
 from app.domain.services.graph_repository import IGraphRepository
+from app.usecases.graph_crud import GraphCrudUseCase
 
 router = APIRouter()
+
+
+def get_graph_crud_usecase(repo: IGraphRepository = Depends(get_graph_repository)) -> GraphCrudUseCase:
+    return GraphCrudUseCase(repo)
+
+
+@router.post("/ingest")
+async def ingest_graph(
+    extraction_result: ExtractionResult,
+    usecase: GraphCrudUseCase = Depends(get_graph_crud_usecase),
+) -> dict[str, Any]:
+    try:
+        await usecase.ingest_ontology(extraction_result)
+        return {
+            "status": "success",
+            "nodes_upserted": len(extraction_result.nodes),
+            "edges_upserted": len(extraction_result.edges),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/nodes")
+async def create_or_update_node(
+    node: GraphNode,
+    usecase: GraphCrudUseCase = Depends(get_graph_crud_usecase),
+) -> dict[str, str]:
+    try:
+        await usecase.create_or_update_node(node)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/nodes/{node_id}")
+async def get_node(
+    node_id: str,
+    repo: IGraphRepository = Depends(get_graph_repository),
+) -> GraphNode:
+    node = await repo.get_node(node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return node
+
+
+@router.delete("/nodes/{node_id}")
+async def delete_node(
+    node_id: str,
+    usecase: GraphCrudUseCase = Depends(get_graph_crud_usecase),
+) -> dict[str, str]:
+    try:
+        await usecase.delete_node(node_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/edges")
+async def create_or_update_edge(
+    edge: GraphEdge,
+    usecase: GraphCrudUseCase = Depends(get_graph_crud_usecase),
+) -> dict[str, str]:
+    try:
+        await usecase.create_or_update_edge(edge)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/edges")
+async def delete_edge(
+    source_id: str = Query(...),
+    target_id: str = Query(...),
+    usecase: GraphCrudUseCase = Depends(get_graph_crud_usecase),
+) -> dict[str, str]:
+    try:
+        await usecase.delete_edge(source_id, target_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/search")
@@ -26,11 +108,7 @@ async def search_graph(
     # アンカーを起点とするサブグラフを取得
     extraction_result = await repo.get_subgraph(anchor_ids=anchor_ids, max_hops=hops)
 
-    # 戻り値の形式 (ExtractionResultはPydanticモデル)
-    # kuzu_graph_repository.pyの実装によってはExtractionResultではなく辞書を返す可能性があるが、
-    # 定義としては ExtractionResult を返すようになっている。
-
-    # Pydanticモデルの場合はmodel_dump()、辞書の場合はそのまま返す
+    # 戻り値の形式
     if hasattr(extraction_result, "nodes"):
         nodes = [n.model_dump() if hasattr(n, "model_dump") else n for n in extraction_result.nodes]
         edges = [e.model_dump() if hasattr(e, "model_dump") else e for e in extraction_result.edges]

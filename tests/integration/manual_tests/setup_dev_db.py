@@ -3,25 +3,10 @@ import json
 from pathlib import Path
 
 from app.core.config import get_settings
-from app.domain.models.graph import ExtractionResult, GraphNode
-from app.domain.services.text_llm_service import ITextLLMService
+from app.domain.models.graph import ExtractionResult
 from app.infrastructure.database.kuzu_db import KuzuDB
 from app.interfaces.repositories.kuzu_graph_repository import KuzuGraphRepository
-from app.usecases.generate_ontology import GenerateOntologyUseCase
-
-
-class MockLLMService(ITextLLMService):
-    async def generate_ontology(self, text_content: str) -> ExtractionResult:
-        raise NotImplementedError()
-
-    async def extract_anchor_keywords(self, text_content: str) -> list[str]:
-        return ["ダミーキーワード"]
-
-    async def validate_anchor(self, text_content: str, candidate_node: GraphNode) -> bool:
-        return True
-
-    async def generate_links(self, new_graph: ExtractionResult, context_subgraph: ExtractionResult) -> ExtractionResult:
-        return new_graph
+from app.usecases.graph_crud import GraphCrudUseCase
 
 
 async def main() -> None:
@@ -44,13 +29,11 @@ async def main() -> None:
     KuzuDB._instance = None
     db = KuzuDB(settings=settings)
     repo = KuzuGraphRepository(db)
-    mock_llm = MockLLMService()
 
-    usecase = GenerateOntologyUseCase(llm_service=mock_llm, graph_repository=repo)
+    usecase = GraphCrudUseCase(graph_repository=repo)
 
     print("Loading initial dummy data into DB...")
-    text_content = "dummy text content"
-    await usecase.execute_context_linking(raw_graph, text_content)
+    await usecase.ingest_ontology(raw_graph)
     print("DB Setup Complete!\n")
 
 
