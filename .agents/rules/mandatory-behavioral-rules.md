@@ -10,6 +10,7 @@ description: Mandatory behavioral guidelines to reduce common LLM coding mistake
 - 前提条件を明示し、不確実な場合は推測せず質問する。
 - 複数の解釈がある場合は、勝手に判断せず提示する。
 - 不明点がある場合は立ち止まり、何が不明かを明確にして質問する。
+- ユーザが明確に承認するまで、勝手にタスクを開始しない。
 
 ## 2. Simplicity First
 - 要求された最小限のコードを記述する。

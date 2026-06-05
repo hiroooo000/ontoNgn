@@ -73,17 +73,18 @@ flowchart TD
 
 | 項番 | 機能モジュール | 役割の概要 |
 | :--- | :--- | :--- |
-| 01 | **Workflow Orchestrator** | ドキュメントの読み込みから画像化、テキスト化、オントロジー抽出にいたるパイプライン全体のステート（処理フェーズ・成否）を管理し、非同期タスクキューを用いてタスクを連動させます。各フェーズでの状態遷移やエラー時のリトライ・通知機構も担います。 |
+| 01 | **Workflow Orchestrator** | 任意のノードを組み合わせてDAGを構成・実行可能な軽量ワークフローエンジン。処理状態の管理や、途中失敗からの再開、ポータル画面上でのワークフロー構築UI（作成・実行・履歴画面）を提供します。 |
 | 02 | **Document Render API** | ドキュメント（PDF/Word/Excel）をパースし、Vision Modelに入力可能な高解像度PNG画像群へ変換します（LibreOffice等を利用）。 |
 | 03 | **Vision Extraction API** | レンダリングされた画像群を入力としてマルチモーダルLLMを呼び出し、マークダウンなどの構造化されたレイアウト維持テキストを出力します。 |
 | 04 | **Ontology Generation API** | 構造化テキストから、エンティティ（手続き、アクター等）とリレーション（依存関係等）をJSON形式で抽出し、バリデーションした上でデータベースへ保存します。 |
 | 05 | **Ontology Linking Engine** | 新規抽出されたオントロジーについて、アンカー探索と既存サブグラフの取得を行い、LLM推論により既存知識グラフとの関連付け（リンク生成・マージ）を行います。 |
 | 06 | **Ontology Evolution Agent** | 未分類の概念（`ap:UnclassifiedConcept`）に対し、既存スキーマとの類似度や文脈情報を分析し、新規クラス昇格や既存へのマッピング案を自律的に生成します。 |
 | 07 | **Schema Compiler** | 承認された進化提案に基づき、Zod/Pydantic validation定義ファイルおよびOWL/Turtleオントロジーファイルを動的に再生成・コンパイルします。 |
-| 08 | **Schema Evolution API** | 未承認（Pending）状態のオントロジー進化提案をユーザーが確認し、承認（クラス昇格/既存マッピング）または却下（データ破棄）するアクションを受け付け、Graph RepositoryやSchema Compilerへ連携するAPI。 |
+| 08 | **Schema Evolution 管理機能** | 未承認（Pending）状態のオントロジー進化提案をユーザーが確認し、承認（クラス昇格/既存マッピング）または却下（データ破棄）するアクションを受け付けるUIおよびAPI。 |
 | 09 | **Graph Repository** | DB非依存の知識グラフ管理インターフェース。Neo4j、Kuzu等の各グラフDBへのデータ同期およびエクスポート処理を担います。 |
-| 10 | **Console UI (SPA)** | 処理状態ダッシュボードの表示、エラーログの閲覧、およびスキーマ進化提案に対する人間の承認／却下のフィードバック収集を担うフロントエンドSPA。 |
+| 10 | **Console UI (SPA)** | ユーザーが各サブ機能（ワークフロー、ドキュメント、グラフ探索等）へアクセスするためのポータル画面（シェル）としての役割を担うVue 3ベースのSPA基盤。 |
 | 11 | **Graph Visualization UI** | データベースに蓄積されたノードとエッジを、検索を起点として動的に探索・可視化するネットワークグラフUI（Vue 3 + vis-network等を利用）。 |
+| 12 | **Document Management** | ワークフローの起点となるドキュメント（PDF等）の登録、一覧表示、およびステータス監視を行う独立した機能モジュール（UIおよびAPI）。 |
 
 ---
 
@@ -100,12 +101,14 @@ flowchart TD
 | GET | `/api/v1/documents/{id}` | 特定ドキュメントの詳細・ステータス取得 | - | `{ "id": "uuid", "status": "Rendering", "error_log": null }` |
 | DELETE | `/api/v1/documents/{id}` | ドキュメントおよび関連データの削除 | - | `{ "status": "deleted" }` |
 
-### 3.2 Workflow API (ワークフロー制御)
+### 3.2 Workflow API (ワークフロー制御・実行管理)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
 | :--- | :--- | :--- | :--- | :--- |
-| POST | `/api/v1/workflow/{id}/start` | ドキュメントの解析パイプライン開始 | - | `{ "status": "Rendering" }` |
-| POST | `/api/v1/workflow/{id}/retry` | エラー終了した処理の再試行 | - | `{ "status": "Processing" }` |
-| POST | `/api/v1/workflow/{id}/cancel` | 実行中のパイプラインをキャンセル | - | `{ "status": "Cancelled" }` |
+| POST | `/api/v1/workflows` | 新規ワークフローの定義作成 | `{ "name": "...", "nodes": [...], "edges": [...] }` | `{ "id": "uuid" }` |
+| GET | `/api/v1/workflows` | ワークフロー一覧取得 | - | `[{ "id": "uuid", "name": "..." }]` |
+| POST | `/api/v1/workflows/{id}/run` | 指定したワークフローの実行開始（開始ノード指定可能） | `{ "initial_payload": { ... }, "start_node_id": "node-1" }` | `{ "execution_id": "uuid", "status": "Running" }` |
+| GET | `/api/v1/executions/{id}` | 実行ステータスと各ノードのログ取得 | - | `{ "status": "Failed", "nodes": [...] }` |
+| POST | `/api/v1/executions/{id}/resume` | 失敗・停止した箇所からの実行再開 | `{ "override_payload": {} }` | `{ "status": "Running" }` |
 
 ### 3.3 Schema Evolution API (スキーマ進化管理)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
@@ -120,7 +123,12 @@ flowchart TD
 | GET | `/api/v1/export/graphrag` | LlamaIndex等向けJSON形式のエクスポート | `?format=json` | `{ "nodes": [...], "edges": [...] }` |
 | GET | `/api/v1/export/turtle` | 標準的なRDF/Turtle形式でのエクスポート | - | (Turtle format text file) |
 
-### 3.5 Graph API (グラフCRUD・可視化・探索)
+### 3.5 Ontology API (オントロジー生成・個別実行)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/ontology/generate` | テキストから直接オントロジーを生成（Workflowを経由しない開発・個別実行用） | `{ "text_content": "..." }` | `{ "nodes": [...], "edges": [...] }` |
+
+### 3.6 Graph API (グラフCRUD・可視化・探索)
 | Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
 | :--- | :--- | :--- | :--- | :--- |
 | POST | `/api/v1/graph/ingest` | 抽出済みのオントロジーJSONを一括でGraphDBへUpsert登録 | `{ "nodes": [...], "edges": [...] }` | `{ "status": "success", "nodes_upserted": 10 }` |
@@ -298,6 +306,7 @@ app/
 │   ├── render_document.py      # 画像レンダリング処理
 │   ├── extract_text.py         # Visionを用いたテキスト抽出
 │   ├── generate_ontology.py    # LLMを用いたオントロジー生成
+│   ├── graph_crud.py           # ノード・エッジの作成・削除等のCRUD処理
 │   └── export_graphrag.py      # GraphRAG用データエクスポート
 ├── workflows/                  # ワークフロー制御層
 │   └── orchestrator.py         # パイプライン状態管理と各UseCase/APIの非同期呼び出し

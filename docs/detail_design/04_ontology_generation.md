@@ -1,174 +1,173 @@
 # 04. Ontology Generation API 詳細設計
 
-## 1. 抽象サービス定義 (`app/domain/services/text_llm_service.py`)
+## 1. 対象機能の概要・処理一覧
 
-```python
-from abc import ABC, abstractmethod
-from app.domain.models.graph import ExtractionResult
+テキストデータ（主に行政ドキュメント等）を入力として受け取り、LLM（LM Studio等）を用いて知識グラフ（オントロジー）のノードおよびエッジを抽出する機能です。
 
-class ITextLLMService(ABC):
-    @abstractmethod
-    async def generate_ontology(self, text_content: str) -> ExtractionResult:
-        """構造化テキストからオントロジーデータを抽出"""
-        pass
+### 処理一覧
+1. **リクエスト受付**: クライアントから対象テキストを受け取る。
+2. **LLM推論 (Ontology抽出)**: LLMにプロンプトとテキストを渡し、Structured Output (JSON) 形式でノードとエッジを抽出する。
+3. **データ検証 (Validation)**: Pydanticを用いて、抽出結果が事前定義されたスキーマに従っているかを検証する。
+4. **未分類概念の判定**: 抽出されたノードの中に未知の概念 (`ap:UnclassifiedConcept`) が含まれていないか判定し、必要に応じてフラグを設定する。
+5. **結果返却**: 抽出結果（ノード配列、エッジ配列）をAPIレスポンスとして返す。
+
+## 2. 対象機能のモジュール構成図・クラス図
+
+### モジュール構成図
+クリーンアーキテクチャに基づく、各モジュール間の依存関係です。
+
+```mermaid
+classDiagram
+    direction TB
+    
+    namespace Interfaces_API {
+        class OntologyRouter
+    }
+    
+    namespace UseCases {
+        class GenerateOntologyUseCase
+    }
+    
+    namespace Domain_Services {
+        class ITextLLMService {
+            <<Interface>>
+        }
+    }
+    
+    namespace Interfaces_Gateways {
+        class LMStudioGateway
+    }
+    
+    OntologyRouter --> GenerateOntologyUseCase : 呼び出し
+    GenerateOntologyUseCase --> ITextLLMService : 依存（DI）
+    LMStudioGateway ..|> ITextLLMService : 実装
 ```
 
-## 2. バリデーションスキーマ定義 (`app/interfaces/gateways/schemas/extraction_schema.py`)
+### クラス図（ドメイン・スキーマ定義）
+オントロジー抽出に用いる主要なデータ構造です。
 
-LLM の Structured Outputs (JSON モード) から取得した値を Pydantic で厳密に検証するための定義です。
+```mermaid
+classDiagram
+    class ExtractionResult {
+        +List~GraphNode~ nodes
+        +List~GraphEdge~ edges
+        +bool needs_evolution
+    }
+    
+    class GraphNode {
+        +str id
+        +str label
+        +dict properties
+    }
+    
+    class GraphEdge {
+        +str source_id
+        +str target_id
+        +str relation_type
+        +dict properties
+    }
 
-```python
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Literal
+    class LLMExtraction {
+        <<Pydantic Schema>>
+        +List~ExtractedNode~ nodes
+        +List~ExtractedRelationship~ relationships
+    }
 
-class ExtractedNode(BaseModel):
-    id: str = Field(..., pattern=r"^ap:[A-Za-z0-9_]+$")
-    type: Literal[
-        'ap:Procedure',
-        'ap:Actor',
-        'ap:Document',
-        'ap:Condition',
-        'ap:Organization',
-        'ap:InputItem',
-        'ap:LegalBasis',
-        'ap:UnclassifiedConcept' # 未知概念は一時的にこのタイプで退避
-    ]
-    label: str
-    description: str | None = None
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
-class ExtractedRelationship(BaseModel):
-    source: str
-    target: str
-    type: Literal[
-        'ap:hasTargetActor',
-        'ap:requiresDocument',
-        'ap:producesDocument',
-        'ap:hasPrerequisite',
-        'ap:administeredBy',
-        'ap:basedOnLaw',
-        'ap:nextProcedure'
-    ]
-    properties: Dict[str, Any] = Field(default_factory=dict)
-
-class LLMExtraction(BaseModel):
-    nodes: List[ExtractedNode]
-    relationships: List[ExtractedRelationship]
+    ExtractionResult *-- GraphNode
+    ExtractionResult *-- GraphEdge
 ```
 
-## 3. LMStudio 連携ゲートウェイ (Ontology抽出実装)
+## 3. 対象機能の処理フロー図・シーケンス図
 
-`app/interfaces/gateways/lmstudio_gateway.py` のOntology生成関連の実装を抜粋します。
-
-```python
-import json
-from openai import AsyncOpenAI
-from fastapi import Depends
-from app.core.config import get_settings, Settings
-from app.domain.services.text_llm_service import ITextLLMService
-from app.domain.models.graph import ExtractionResult, GraphNode, GraphEdge
-from app.interfaces.gateways.schemas.extraction_schema import LLMExtraction
-
-class LMStudioGateway(ITextLLMService):
-    def __init__(self, settings: Settings = Depends(get_settings)):
-        self.client = AsyncOpenAI(
-            base_url=settings.llm_api_base_url,
-            api_key=settings.llm_api_key or "lm-studio",
-        )
-        self.text_model_name = settings.text_model_name
-        self.temperature = settings.llm_temperature
-
-    async def generate_ontology(self, text_content: str) -> ExtractionResult:
-        response = await self.client.chat.completions.create(
-            model=self.text_model_name,
-            temperature=self.temperature,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": "あなたは行政ドキュメントを読み取り、指定されたJSON構造で手続き・必要書類・アクターの関係性を抽出する専門家です。指定のスキーマ以外のプロパティは含めないでください。"
-                },
-                {
-                    "role": "user",
-                    "content": f"以下の構造化テキストから行政手続きのオントロジー関係を抽出してください。\n\nテキスト:\n{text_content}"
-                }
-            ]
-        )
-
-        response_text = response.choices[0].message.content or "{}"
-        json_parsed = json.loads(response_text)
-
-        # スキーマによるデータ検証
-        validated_data = LLMExtraction.model_validate(json_parsed)
-
-        nodes = [
-            GraphNode(
-                id=n.id,
-                label=n.label,
-                properties={"type": n.type, "description": n.description, **n.properties}
-            ) for n in validated_data.nodes
-        ]
-
-        edges = [
-            GraphEdge(
-                source_id=r.source,
-                target_id=r.target,
-                relation_type=r.type,
-                properties=r.properties
-            ) for r in validated_data.relationships
-        ]
-
-        return ExtractionResult(nodes=nodes, edges=edges)
+### 処理フロー図
+```mermaid
+flowchart TD
+    A["リクエスト受付"] --> B["GenerateOntologyUseCase実行"]
+    B --> C["ITextLLMService.generate_ontology呼び出し"]
+    C --> D["LLM (LM Studio) へプロンプト送信"]
+    D --> E["JSONレスポンスの取得"]
+    E --> F{"Pydanticスキーマ検証"}
+    F -- 失敗 --> G["エラー応答 422/500"]
+    F -- 成功 --> H["ExtractionResultオブジェクト生成"]
+    H --> I{"未分類概念 ap:UnclassifiedConcept あり?"}
+    I -- Yes --> J["status=pending, needs_evolution=True に設定"]
+    I -- No --> K["そのままレスポンス返却"]
+    J --> K
 ```
 
-## 4. ユースケース定義 (`app/usecases/generate_ontology.py`)
+### シーケンス図
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Router as API Router
+    participant UseCase as GenerateOntologyUseCase
+    participant Gateway as LMStudioGateway
+    participant LLM as LM Studio (LLM)
 
-クリーンアーキテクチャの原則に従い、ドメインインターフェースに依存したユースケースを定義します。
-
-```python
-from app.domain.services.text_llm_service import ITextLLMService
-from app.domain.models.graph import ExtractionResult
-
-class GenerateOntologyUseCase:
-    def __init__(self, llm_service: ITextLLMService):
-        self.llm_service = llm_service
-
-    async def execute(self, text_content: str) -> ExtractionResult:
-        # 1. LLMを用いてテキストからオントロジー（ノード・エッジ）を抽出
-        result = await self.llm_service.generate_ontology(text_content)
-        
-        # 2. 未分類概念（ap:UnclassifiedConcept）が含まれているか確認し、
-        #    必要に応じてステータスを変更またはイベントを発火する処理を追加。
-        for node in result.nodes:
-            if node.properties.get("type") == "ap:UnclassifiedConcept":
-                node.properties["status"] = "pending"
-                result.needs_evolution = True
-
-        return result
+    Client->>Router: POST /generate (text_content)
+    Router->>UseCase: execute(text_content)
+    UseCase->>Gateway: generate_ontology(text_content)
+    Gateway->>LLM: chat.completions.create(JSON mode)
+    LLM-->>Gateway: JSON文字列
+    Gateway->>Gateway: Pydanticバリデーション
+    Gateway-->>UseCase: ExtractionResult
+    
+    loop ノードの確認
+        alt type == 'ap:UnclassifiedConcept'
+            UseCase->>UseCase: status = "pending"
+            UseCase->>UseCase: needs_evolution = True
+        end
+    end
+    
+    UseCase-->>Router: ExtractionResult
+    Router-->>Client: 200 OK (JSON)
 ```
 
-## 5. APIルーター定義 (`app/interfaces/api/ontology.py`)
+## 4. APIインターフェース仕様 / 入出力データ（スキーマ）
 
-FastAPIのルーターとして、外部（またはConsole UI）からのリクエストを受け付け、UseCaseを呼び出します。
+### エンドポイント
+- **`POST /generate`**
 
-```python
-from fastapi import APIRouter, Body, Depends, HTTPException
-from app.core.dependencies import get_text_llm_service
-from app.domain.services.text_llm_service import ITextLLMService
-from app.usecases.generate_ontology import GenerateOntologyUseCase
-from app.domain.models.graph import ExtractionResult
+### リクエスト仕様
+- **Content-Type**: `text/plain`
+- **Body**: 抽出対象となるテキストデータ（行政手続きの要項など）。
 
-router = APIRouter()
+### レスポンス仕様
+- **Content-Type**: `application/json`
+- **Status Code**: `200 OK`
 
-@router.post("/generate", response_model=ExtractionResult)
-async def generate_ontology_api(
-    text_content: str = Body(..., media_type="text/plain"),
-    llm_service: ITextLLMService = Depends(get_text_llm_service),
-) -> ExtractionResult:
-    try:
-        usecase = GenerateOntologyUseCase(llm_service=llm_service)
-        result = await usecase.execute(text_content=text_content)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-```
+#### データ構造の制約 (Pydanticバリデーションルール)
+
+**ノード (ExtractedNode)**
+- `id`: 正規表現 `^ap:[A-Za-z0-9_]+$` に一致すること。
+- `type`: 以下のいずれかであること。
+  - `ap:Procedure`, `ap:Actor`, `ap:Document`, `ap:Condition`, `ap:Organization`, `ap:InputItem`, `ap:LegalBasis`, `ap:UnclassifiedConcept`
+
+**エッジ (ExtractedRelationship)**
+- `type`: 以下のいずれかであること。
+  - `ap:hasTargetActor`, `ap:requiresDocument`, `ap:producesDocument`, `ap:hasPrerequisite`, `ap:administeredBy`, `ap:basedOnLaw`, `ap:nextProcedure`
+
+## 5. 異常系・エラーハンドリング
+
+| 想定されるエラー | 原因 | 対応方針 | HTTPステータス |
+| :--- | :--- | :--- | :--- |
+| **LLM通信エラー** | APIキー無効、URL誤り、またはLM Studio未起動 | `ITextLLMService`内で例外を捕捉、または上層へ伝播させ、サーバーエラーとして返す。可能であればリトライを実施する。 | `500 Internal Server Error` |
+| **パース/バリデーションエラー** | LLMが指定したJSONスキーマ（Pydantic定義）に沿わない形式で回答した | `LLMExtraction.model_validate()` でエラー発生。JSON再生成（リトライ）を試みるか、エラーとして終了する。 | `500 Internal Server Error` (内部起因) |
+| **リクエスト不正** | リクエストボディが空、または不正な形式 | FastAPIの標準バリデーションにより自動的にエラーレスポンスを返す。 | `422 Unprocessable Entity` |
+
+## 6. 依存する環境変数・外部設定
+
+当該機能を動作させるためには、以下の環境変数（設定値）が必要です。
+
+- `LLM_API_BASE_URL`: LM Studio等のOpenAI互換APIのベースURL (例: `http://localhost:1234/v1`)
+- `LLM_API_KEY`: APIキー (LM Studioの場合は任意の文字列可)
+- `TEXT_MODEL_NAME`: テキスト処理に使用するLLMのモデル名
+- `LLM_TEMPERATURE`: LLMの出力のランダム性を制御するパラメータ（通常は `0.0` に近い値が望ましい）
+
+## 7. テスト方針
+
+- **単体テスト (Unit Test)**:
+  - `GenerateOntologyUseCase` のテストでは、`ITextLLMService` をモック化し、LLMに依存せずに `ap:UnclassifiedConcept` の判定ロジック（`needs_evolution=True` 等）が正しく動作することを検証する。
+  - `LMStudioGateway` のデータパース処理をテストする際、LLMのAPI応答（HTTPリクエスト）を `httpx` や `pytest-asyncio` のモックでシミュレートし、Pydanticのバリデーションエラー時の挙動を確認する。
+- **結合テスト (Integration Test)**:
+  - テスト用の簡易モデルをロードしたローカルのLM Studio環境を用いて、エンドツーエンドでの抽出精度とレスポンス形式を確認する。

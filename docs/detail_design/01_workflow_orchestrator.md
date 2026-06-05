@@ -1,42 +1,339 @@
 # 01. Workflow Orchestrator 詳細設計
 
-本システムにおける全体の実行をつかさどるワークフロー制御エンジン（Workflow Orchestrator）の設計詳細です。
-ドキュメントのアップロードから画像化、テキスト抽出、オントロジー生成、スキーマ進化の判定に至るパイプラインを一元管理し、非同期タスクキューを利用してタスクを連動させます。
+## 1. 対象機能の概要・処理一覧
 
-## 1. 全体アーキテクチャとタスクキュー
+本システムにおける全体の実行をつかさどる、**任意のDAG（有向非巡回グラフ）を構成可能な軽量ノードベース・ワークフローエンジン** の設計詳細です。
+Difyやn8nのようなアーキテクチャを採用し、ontoNgnが提供する機能（Render, Vision, Ontology生成など）を「ノード」として組み合わせることで、柔軟なパイプラインを構築・実行できます。
 
-- **非同期タスクキュー**: FastAPI の `BackgroundTasks` または Celery/RQ のような非同期キューワーカーを利用して、時間のかかる処理（PDFレンダリングやLLM呼び出し）をバックグラウンドで実行します。
-- **ステートマシン**: 処理の各フェーズにおいて、対象ドキュメントのレコード（RDBまたはGraphDB内のメタデータノード）のステータスを更新し、進捗状況を追跡可能にします。
+また、デフォルトのプリセットとして、システムの基本要件である「ドキュメントアップロード → 画像化 → テキスト抽出 → オントロジー生成 → スキーマ進化判定」のフローが登録されます。
 
-## 2. 状態（ステータス）遷移定義
+### 処理一覧
+1. **ワークフロー定義の管理**: ノードの接続関係（DAG）と設定値をJSONベースで定義し、データベースで永続化・管理する。
+2. **DAG実行エンジン**: トポロジカルソートを用いてノードの依存関係を解決し、実行可能なノードから順次・並列で処理を実行する。
+3. **ステート管理とコンテキスト・リレー**: 各ノードの入出力データ（巨大なJSONコンテキスト/ペイロード）をリレー形式で次のノードへ受け渡す。実行状態（Success, Failed, Paused等）は逐次データベースに保存する。
+4. **レジューム機能（途中再開）**: ノードの実行が失敗した場合や、ユーザー承認待ち（Human-in-the-loop）で停止した場合に、失敗した箇所（または停止した箇所）からコンテキストを復元して処理を再開する。
 
-| ステータス名 | 説明 | 次の状態遷移 |
-| :--- | :--- | :--- |
-| `Uploaded` | ドキュメントが収集・アップロードされ、解析待ちの状態。 | `Rendering` または `Failed` |
-| `Rendering` | ドキュメントをPNG画像にレンダリング中の状態。 | `Extracting_Text` または `Failed` |
-| `Extracting_Text` | Vision Modelを用いて画像から構造化テキストを抽出中の状態。 | `Generating_Ontology` または `Failed` |
-| `Generating_Ontology` | LLMを用いてテキストからオントロジー（JSON）を生成中の状態。 | `Pending_Evolution`, `Completed`, または `Failed` |
-| `Pending_Evolution` | 未分類の概念が検出され、開発者によるスキーマ進化の承認待ち状態。 | 承認/却下により `Completed` または再度 `Generating_Ontology` |
-| `Completed` | 全ての処理が完了し、知識グラフとしてDBに保存された状態。 | (終端) |
-| `Failed` | いずれかのステップでエラーが発生し、処理が停止した状態。 | ユーザーからの再試行リクエストにより各種ステータスへ復帰 |
+## 2. モジュール構成図・クラス図
 
-## 3. エラーリカバリとリトライ機構
+### モジュール構成図
+```mermaid
+classDiagram
+    direction TB
+    
+    namespace Interfaces_API {
+        class WorkflowRouter
+        class ExecutionRouter
+    }
+    
+    namespace Core_Engine {
+        class DAGEngine {
+            +run_workflow(workflow_id, initial_payload)
+            +resume_execution(execution_id)
+            -_execute_node(node, context)
+        }
+        class NodeExecutorFactory {
+            +get_executor(node_type)
+        }
+    }
+    
+    namespace Executors {
+        class BaseNodeExecutor {
+            <<Abstract>>
+            +execute(inputs, config)
+        }
+        class RenderNodeExecutor
+        class VisionNodeExecutor
+        class LLMNodeExecutor
+        class ConditionNodeExecutor
+    }
+    
+    namespace Repositories_DB {
+        class IWorkflowRepository
+        class IExecutionRepository
+    }
 
-- 各ステップの実行時、一時的なネットワークエラー（LLM APIのタイムアウト等）が発生した場合は、指数的バックオフ（Exponential Backoff）アルゴリズムを用いた自動リトライを行います。
-- 最大リトライ回数を超過した場合や、致命的なエラー（パース不可能なファイル等）が発生した場合は、ステータスを `Failed` に遷移させ、エラー詳細を `error_log` 属性として記録します。
-- UI上からは `/api/v1/workflow/{id}/retry` エンドポイントを呼び出すことで、失敗した箇所からパイプラインを再開することが可能です。
+    WorkflowRouter --> DAGEngine
+    ExecutionRouter --> DAGEngine
+    DAGEngine --> NodeExecutorFactory
+    NodeExecutorFactory --> BaseNodeExecutor
+    BaseNodeExecutor <|-- RenderNodeExecutor
+    BaseNodeExecutor <|-- VisionNodeExecutor
+    BaseNodeExecutor <|-- LLMNodeExecutor
+    DAGEngine --> IWorkflowRepository : 定義の読み書き
+    DAGEngine --> IExecutionRepository : ステート/コンテキストの保存
+```
 
-## 4. ドキュメント収集（Ingestion）エンドポイント
+### クラス図（エンティティ）
+```mermaid
+classDiagram
+    class WorkflowDefinition {
+        +UUID id
+        +str name
+        +dict nodes  // ノードの種類や設定のJSON
+        +list edges  // ノード間の接続情報
+        +datetime created_at
+    }
+    
+    class WorkflowExecution {
+        +UUID id
+        +UUID workflow_id
+        +str status  // Running, Paused, Failed, Success
+        +dict context_payload  // 全体の共有コンテキスト
+        +datetime started_at
+    }
+    
+    class NodeExecution {
+        +UUID id
+        +UUID execution_id
+        +str node_id
+        +str status
+        +dict inputs
+        +dict outputs
+        +str error_log
+    }
+    
+    WorkflowDefinition "1" *-- "many" WorkflowExecution
+    WorkflowExecution "1" *-- "many" NodeExecution
+```
 
-Workflow Orchestrator のパイプラインを起動するための起点（トリガー）となる処理です。
+## 3. 処理フロー図・シーケンス図
 
-### 4.1 手動アップロード (`POST /api/v1/documents/upload`)
-- Console UI よりファイルバッファを受け取ります。
-- ファイルデータの SHA-256 ハッシュを計算し、重複を確認します。
-- 新規ファイルであれば一時ディレクトリ（またはクラウドストレージ）に保存し、ステータスを `Uploaded` としてパイプライン（`start_pipeline`）を非同期にキックします。
+### DAG実行フロー・レジュームフロー
+```mermaid
+flowchart TD
+    Start(["実行要求 (API / UI)"]) --> FetchDef["DBからワークフロー定義を取得"]
+    FetchDef --> CheckResume{"新規か再開か？"}
+    
+    CheckResume -->|新規| CreateExec["WorkflowExecution作成\n(Status: Running)"]
+    CheckResume -->|再開| LoadExec["DBから既存Executionと\nペイロードを復元"]
+    
+    CreateExec --> ResolveDAG["DAGを解析し、実行待ちノードを特定"]
+    LoadExec --> ResolveDAG
+    
+    ResolveDAG --> ExecuteNode["NodeExecutorを実行\n(inputsを渡し、outputsを得る)"]
+    
+    ExecuteNode --> SaveNodeState["NodeExecutionをDBに保存\nコンテキストペイロードを更新"]
+    SaveNodeState --> CheckResult{"ノード実行結果"}
+    
+    CheckResult -->|Success| CheckNext{"次のノードはあるか？"}
+    CheckNext -->|Yes| ResolveDAG
+    CheckNext -->|No| EndSuccess(["完了 (Status: Success)をDB保存"])
+    
+    CheckResult -->|Failed| EndFailed(["失敗 (Status: Failed)をDB保存"])
+    CheckResult -->|Paused| EndPaused(["一時停止 (Status: Paused)をDB保存\n※承認待ちなど"])
+    
+    EndFailed --> ResumeTrigger["後日、原因解消後にResume APIをコール"]
+    ResumeTrigger --> LoadExec
+```
 
-### 4.2 ローカルパススキャナ (`POST /api/v1/documents/register-path`)
-- 指定されたフォルダを定期監視（watchdog等）し、新しいファイルや更新されたファイルが検出された場合に自動的にパイプラインを起動します。
+### 途中失敗からの再開（レジューム）シーケンス図
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as Workflow API
+    participant Engine as DAG Engine
+    participant DB as Database
+    participant Node as Node Executor (e.g. LLM)
 
-### 4.3 URL自動収集タスク
-- 設定された外部URL（行政ポータル等）を定期的にクロールし、ファイルが更新されているか（ETag/Last-Modified比較）を判定してパイプラインを起動します。
+    %% 初回実行で失敗
+    User->>API: POST /api/v1/workflows/{id}/run
+    API->>Engine: start_execution()
+    Engine->>DB: create_execution()
+    Engine->>Node: execute(node_1)
+    Node-->>Engine: Success
+    Engine->>DB: save_node_status(node_1, Success)
+    
+    Engine->>Node: execute(node_2)
+    Note over Node: APIキー無効などで例外発生
+    Node--xEngine: Exception (Failed)
+    Engine->>DB: save_node_status(node_2, Failed)
+    Engine->>DB: update_execution_status(Failed)
+    Engine-->>API: 実行失敗レスポンス
+    API-->>User: 500 / Error Info
+    
+    %% 問題を修正して再開
+    Note over User: 設定や環境変数を修正
+    User->>API: POST /api/v1/executions/{exec_id}/resume
+    API->>Engine: resume_execution(exec_id)
+    Engine->>DB: load_execution_and_context()
+    Note right of Engine: node_1 は Success のためスキップ。<br/>node_2 からコンテキストを復元して実行。
+    
+    Engine->>Node: execute(node_2)
+    Node-->>Engine: Success
+    Engine->>DB: save_node_status(node_2, Success)
+    Engine->>DB: update_execution_status(Success)
+    Engine-->>API: 完了レスポンス
+```
+
+## 4. APIインターフェース仕様 / 入出力データ
+
+エンドポイントは汎用的なワークフロー管理・実行の形式へと刷新されます。
+
+### ワークフロー管理 (Workflow CRUD)
+| Method | Endpoint | 概要 | リクエスト例 |
+| :--- | :--- | :--- | :--- |
+| POST | `/api/v1/workflows` | 新規ワークフローの定義作成 | `{ "name": "...", "nodes": [...], "edges": [...] }` |
+| GET | `/api/v1/workflows` | ワークフロー一覧取得 | - |
+| GET | `/api/v1/workflows/{id}` | ワークフロー詳細取得 | - |
+| PUT | `/api/v1/workflows/{id}` | ワークフロー定義の更新 | `{ "nodes": [...], "edges": [...] }` |
+
+### 実行管理 (Execution Management)
+| Method | Endpoint | 概要 | リクエスト例 | レスポンス例 |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/workflows/{id}/run` | 指定したワークフローの実行開始（必要に応じて開始ノード指定可能） | `{ "initial_payload": { ... }, "start_node_id": "node-3" }` | `{ "execution_id": "uuid", "status": "Running" }` |
+| GET | `/api/v1/executions/{id}` | 実行ステータスと各ノードのログ取得 | - | `{ "status": "Failed", "nodes": [...] }` |
+| POST | `/api/v1/executions/{id}/resume` | 失敗・停止した箇所からの実行再開 | `{ "override_payload": {} }` | `{ "status": "Running" }` |
+| POST | `/api/v1/executions/{id}/cancel` | 実行中のワークフローの強制停止 | - | `{ "status": "Cancelled" }` |
+
+## 5. 異常系・エラーハンドリング
+
+| 想定されるエラー | 原因 | 対応方針 | DB上の状態 |
+| :--- | :--- | :--- | :--- |
+| **ノード実行時の一時的障害** | 外部API連携タイムアウトなど | 各 `NodeExecutor` 内でリトライ（指数バックオフ）を実施。 | `Running` (リトライ中) |
+| **ノードの致命的エラー** | 設定ミス、ファイル破損、リトライ上限到達 | ノードの実行を中止し、エラーメッセージをDBに保存。後続ノードは実行しない。 | Execution: `Failed`, Node: `Failed` |
+| **Human in the Loopのタイムアウト** | スキーマ進化の承認待ちが長期間放置された | スケジューラーが一定期間経過したPausedの実行をFailedとしてマークする。 | Execution: `Failed` (Timeout) |
+| **再開（Resume）時の不整合** | ワークフロー定義が変更された後の再開 | 原則として、実行開始時点のDAGスナップショットを使用して再開する（実行の一貫性担保）。 | - |
+
+## 6. 依存する環境変数・外部設定
+
+- **データベース設定**:
+  - DAGの定義（JSON）や実行コンテキスト（ペイロード）は容量が大きくなる可能性があるため、PostgreSQLの `JSONB` カラム等、JSONを扱えるリレーショナルデータベースを状態管理（`IWorkflowRepository`, `IExecutionRepository`）に使用します。
+- **非同期ワーカー**:
+  - FastAPIのバックグラウンドタスク機能、またはPythonの `asyncio` を利用して非同期にDAGエンジンを起動します（重厚なCelery等は当面避け、軽量なPython実装とする）。
+
+## 7. テスト方針
+
+- **DAGトポロジテスト**:
+  - 閉路（循環）を含む無効なエッジ定義が与えられた際に、トポロジカルソートでバリデーションエラーを返すことを単体テストで検証する。
+- **コンテキストリレーテスト**:
+  - Node Aの出力が正しくNode Bの入力ペイロードとしてマージされているかをテストする。
+- **レジューム（再開）テスト**:
+  - 意図的に例外を投げるモックノードを途中に配置し、Failedで停止すること、およびResume API呼び出し時に成功したノードをスキップして再開することを確認する。
+
+## 8. DAG情報（ワークフロー定義）の保存データ形式
+
+Vue Flow 等のノードベースUIライブラリで直接描画・編集ができるよう、DAGの定義情報は標準的なノードとエッジの配列からなるJSON形式としてデータベース（`JSONB` カラムなど）に永続化されます。
+
+### ワークフロー定義 JSON スキーマ例
+```json
+{
+  "id": "wf-1234",
+  "name": "Standard Ingestion Pipeline",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "render_document",
+      "position": { "x": 100, "y": 200 },
+      "data": {
+        "dpi": 300,
+        "format": "png"
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "vision_extraction",
+      "position": { "x": 400, "y": 200 },
+      "data": {
+        "model": "gpt-4o",
+        "extract_layout": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-1",
+      "target": "node-2",
+      "sourceHandle": "output",
+      "targetHandle": "input"
+    }
+  ]
+}
+```
+
+- **`nodes`**: 実行される個々の処理ブロック。`type` でバックエンドの `NodeExecutor` をマッピングし、`data` にそのノード特有の設定値（モデル名や解像度など）を格納します。`position` はVue FlowがUI上でノードを配置するための座標データです。
+- **`edges`**: ノード間の依存関係（データの流れ）。`sourceHandle` と `targetHandle` を持たせることで、単一のノードから「成功時ルート」「失敗時（エラーハンドリング）ルート」のように分岐させることも可能になります。
+
+## 9. 画面設計 (UI Screens)
+
+ワークフローの管理および実行モニタリングのため、ポータル画面（Console UI）内に以下のSPA画面コンポーネント（Vue 3）を提供します。
+
+### 9.1 ワークフロー一覧画面 (Workflow List Screen)
+- 登録済みのワークフロー（標準プリセットを含む）の一覧表示。
+- **主なアクション**: 新規作成、編集、削除、複製（コピー）。
+
+### 9.2 ワークフロー作成・編集画面 (Workflow Builder Screen)
+- `Vue Flow` 等を利用し、キャンバス上にノードをドラッグ＆ドロップで配置・接続するビジュアルエディター。
+- **ノード設定パネル (Node Configuration Sidebar)**
+  - キャンバス上のノードを選択した際に表示されるスライドインパネル。
+  - 各ノード固有のパラメータ（LLMのプロンプト、解像度など）を入力し、ワークフロー定義JSONの `data` フィールドへ保存する。
+
+### 9.3 ワークフロー実行管理一覧画面 (Execution History Screen)
+- 過去の実行（Completed, Failed）および現在実行中（Running, Paused）のワークフローの履歴リスト。
+- **主なアクション**:
+  - 一覧から特定の実行履歴を選択し、詳細（後述の実行画面）へ遷移する。
+  - 定義済みワークフローを指定し、新規に「実行」を開始して実行画面へ遷移する。
+
+### 9.4 ワークフロー実行・詳細モニタリング画面 (Execution Runner & Monitor Screen)
+- DAGの実行状態をノードグラフ上で視覚的にトラッキングする画面（Runningノードのハイライトなど）。
+- **主要な操作機能**:
+  - **任意のノードからの開始**: グラフ上で特定のノードを右クリックし、「ここから実行を開始する」を選択してAPI (`start_node_id`) をコールする機能。
+  - **失敗からの再開（レジューム）**: Failedノードが発生した場合、そのノードのパラメータを修正した上で「このノードから再実行」ボタンを押せる機能。
+- **実行ノード詳細ログパネル (Node Execution Log Panel)**
+  - 完了済・失敗ノードをクリックした際、そのノードの「実行時間」「入力ペイロード(JSON)」「出力ペイロード(JSON)」「エラー詳細（スタックトレース）」を確認できるデバッグ用のパネル。
+
+## 10. データモデル設計 (Data Model / Storage)
+
+ワークフローの定義、および実行ごとのステータスやコンテキストを永続化するために、以下のリレーショナルデータベース（PostgreSQL等）テーブルを使用します。
+
+### 10.1 ER図
+
+```mermaid
+erDiagram
+    workflows ||--o{ workflow_executions : "has many"
+    workflow_executions ||--o{ node_executions : "has many"
+
+    workflows {
+        UUID id PK
+        VARCHAR name "ワークフロー名"
+        JSONB nodes "Vue Flow互換のノード配列"
+        JSONB edges "Vue Flow互換のエッジ配列"
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    workflow_executions {
+        UUID id PK
+        UUID workflow_id FK
+        VARCHAR status "Running, Paused, Success, Failed 等"
+        JSONB context_payload "実行コンテキスト全体のスナップショット"
+        TIMESTAMP started_at
+        TIMESTAMP completed_at
+    }
+
+    node_executions {
+        UUID id PK
+        UUID execution_id FK
+        VARCHAR node_id "workflows.nodes のID (例: node-1)"
+        VARCHAR status "Running, Success, Failed"
+        JSONB inputs "ノードへの入力ペイロード"
+        JSONB outputs "ノードからの出力ペイロード"
+        TEXT error_log "エラー発生時のスタックトレース等"
+        TIMESTAMP started_at
+        TIMESTAMP completed_at
+    }
+```
+
+### 10.2 テーブル設計の意図
+
+1. **`workflows` テーブル**
+   - ワークフローの静的な「定義」を保存します。
+   - `nodes` および `edges` カラムには `JSONB` 型を採用し、Vue Flow（フロントエンド）の形式をそのまま保存・復元できるようにすることで、将来的にノード定義のプロパティが増えた際にもテーブルスキーマの変更（マイグレーション）を不要にします。
+
+2. **`workflow_executions` テーブル**
+   - パイプライン全体の「1回の実行（Run）」をトラッキングします。
+   - `context_payload` (JSONB) には、最初に入力されたデータから、各ノードの処理を経て追記されていく全体のステート（変数群）を保存します。これが途中再開（レジューム）機能の基盤になります。
+
+3. **`node_executions` テーブル**
+   - 実行内の「個別ノードごとの処理結果」をトラッキングします。
+   - どこまで成功したか、どのノードで失敗したかを特定し、`error_log` と `inputs` / `outputs` を記録することで、コンソールUIから「実行ログ・デバッグ」を容易に閲覧可能にします。
